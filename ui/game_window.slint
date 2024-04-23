@@ -6,8 +6,10 @@ export component GameWindow inherits Window {
     callback clicked <=> board.square-clicked;
 
     board := Board {
-	width: parent.width;
-	height: parent.height;
+	    width: parent.width;
+	    height: parent.height;
+        black-color: #00FF00;
+        white-color: #FFFF00;
     }
 }
 

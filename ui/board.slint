@@ -1,5 +1,8 @@
 export component Board inherits Rectangle {
-    background: #FFFFFF;
+    in property <color> black-color: #121212;
+    in property <color> white-color: #FFFFFF;
+
+    background: white-color;
 
     callback square-clicked(int);
 
@@ -10,7 +13,7 @@ export component Board inherits Rectangle {
 	width: 12.5%;
 	height: 12.5%;
 
-	background: #121212;
+	background: black-color;
 
 	TouchArea {
 	    width: parent.width;
