@@ -1,24 +1,47 @@
-export component Board inherits Rectangle {
+export component Board {
     in property <color> black-color: #121212;
     in property <color> white-color: #FFFFFF;
+    in property <color> border-color: #000000;
 
-    background: white-color;
+    in property <length> board-length;
+    in property <{x: length, y: length}> center;
 
     callback square-clicked(int);
 
+    x: center.x / 2;
+    y: center.y / 2;
+
+    width: board-length;
+    height: board-length;
+
+    // Background
+    Rectangle {
+        background: white-color;
+    }
+
+    // Border
+    Rectangle {
+        background: border-color;
+
+        x: parent.width * -2%;
+        y: parent.height * -2%;
+        z: -10;
+
+        width: parent.width * 104%;
+        height: parent.height * 104%;
+    }
+
     for index in 32 : Rectangle {
-        x: mod(index, 4) * (parent.width * 25%) + parent.width * (mod(index, 8) < 4 ? 0% : 12.5%);
-        y: floor(index / 4) * (parent.height * 12.5%);
-	
-	width: 12.5%;
-	height: 12.5%;
+        property <percent> offset: mod(index, 8) < 4 ? 0% : 12.5%;
+        x: mod(index, 4) * (board-length * 25%) + board-length * offset;
+        y: floor(index / 4) * (board-length * 12.5%);
+
+	width: board-length * 12.5%;
+	height: board-length * 12.5%;
 
 	background: black-color;
 
 	TouchArea {
-	    width: parent.width;
-	    height: parent.height;
-
 	    clicked => {
 		square-clicked(index);
 	    }

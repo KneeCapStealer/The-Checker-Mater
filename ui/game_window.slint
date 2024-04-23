@@ -1,4 +1,5 @@
 import { Board } from "board.slint";
+
 export component GameWindow inherits Window {
     preferred-width: 400px;
     preferred-height: 400px;
@@ -6,10 +7,10 @@ export component GameWindow inherits Window {
     callback clicked <=> board.square-clicked;
 
     board := Board {
-	    width: parent.width;
-	    height: parent.height;
         black-color: #00FF00;
         white-color: #FFFF00;
+        board-length: parent.preferred-height * 50%;
+        center: {x: root.preferred-width / 2, y: root.preferred-height / 2};
     }
 }
 
