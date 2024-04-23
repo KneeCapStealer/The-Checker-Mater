@@ -1,0 +1,24 @@
+export component Board inherits Rectangle {
+    background: #FFFFFF;
+
+    callback square-clicked(int);
+
+    for index in 32 : Rectangle {
+        x: mod(index, 4) * (parent.width * 25%) + parent.width * (mod(index, 8) < 4 ? 0% : 12.5%);
+        y: floor(index / 4) * (parent.height * 12.5%);
+	
+	width: 12.5%;
+	height: 12.5%;
+
+	background: #121212;
+
+	TouchArea {
+	    width: parent.width;
+	    height: parent.height;
+
+	    clicked => {
+		square-clicked(index);
+	    }
+	}
+    }
+}

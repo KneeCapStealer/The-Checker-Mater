@@ -1,32 +1,13 @@
-import { Button, VerticalBox } from "std-widgets.slint";
-
+import { Board } from "board.slint";
 export component GameWindow inherits Window {
-    width: 400px;
-    height: 400px;
-    point := Rectangle {
-	background: #000000;
+    preferred-width: 400px;
+    preferred-height: 400px;
 
-	width: 20px;
-	height: 20px;
+    callback clicked <=> board.square-clicked;
 
-	x: parent.width / 2 - self.width / 2;
-	y: parent.height / 2 - self.height / 2;
-	animate x {
-	     duration: 150ms;
-	     easing: ease-in-out-quad;
-	}
-	animate y {
-	     duration: 150ms;
-	     easing: ease-in-out-quad;
-	}
-    }
-    TouchArea {
+    board := Board {
 	width: parent.width;
 	height: parent.height;
-	clicked => {
-	    point.x = self.mouse-x;
-	    point.y = self.mouse-y;
-	}
     }
 }
 
