@@ -10,8 +10,9 @@ fn main() -> Result<(), slint::PlatformError> {
 
     game.on_clicked({
         let game_weak = game.as_weak();
+        let pieces = pieces.clone();
 
-        move |index: i32| {
+        move |index: i32, last_pressed: i32| {
             let game = game_weak.unwrap();
 
             let new_data = PieceData {
