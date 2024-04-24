@@ -1,0 +1,55 @@
+import { Board } from "board.slint";
+
+export component Circle {
+    in property <{x: length, y: length}> center;
+    in property <length> radius;
+
+    in property <brush> color;
+
+    property <length> diameter: radius * 2;
+
+    x: center.x - radius;
+    y: center.y - radius;
+
+    height: diameter;
+    width: diameter;
+
+    Rectangle {
+        border-radius: radius;
+        background: color;
+    }
+}
+
+export enum PieceColor {
+    White,
+    Black,
+}
+
+export struct PieceData {
+    index: int,
+    color: PieceColor,
+    is-king: bool,
+}
+
+export component Piece {
+    in property <PieceColor> color;
+    in property <length> radius;
+    in property <{x: length, y: length}> pos;
+
+    x: pos.x - radius;
+    y: pos.y - radius;
+    animate x, y {
+         duration: 150ms;
+         easing: ease-in-out;
+    }
+
+    width: radius * 2;
+    height: radius * 2;
+
+    Circle {
+        center: pos;
+        radius: radius;
+        color: color == PieceColor.White ? white : black;
+    }
+}
+

@@ -1,3 +1,5 @@
+import { Piece, PieceData, PieceColor } from "piece.slint";
+
 export component Board {
     in property <color> black-color: #121212;
     in property <color> white-color: #FFFFFF;
@@ -5,6 +7,8 @@ export component Board {
 
     in property <length> board-length;
     in property <{x: length, y: length}> center;
+
+    in-out property <PieceData> pieces;
 
     property <length> length-no-border: board-length * 96%;
     property <length> length-border: board-length - length-no-border;
