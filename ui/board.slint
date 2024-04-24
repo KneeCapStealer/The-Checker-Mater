@@ -10,12 +10,14 @@ export component Board {
 
     in-out property <[PieceData]> pieces: [
         { index: 3, color: PieceColor.Black, is-king: false },
+        { index: 5, color: PieceColor.Black, is-king: false },
     ];
+    in-out property <int> last-pressed: 0;
 
     property <length> length-no-border: board-length * 96%;
     property <length> length-border: board-length - length-no-border;
 
-    callback square-clicked(int);
+    callback square-clicked(int, int);
 
     x: center.x - board-length / 2;
     y: center.y - board-length / 2;
@@ -67,7 +69,8 @@ export component Board {
 
 	TouchArea {
 	    clicked => {
-		square-clicked(index);
+		square-clicked(index, last-pressed);
+                last-pressed = index;
 	    }
 	}
     }
