@@ -17,6 +17,17 @@ impl ToPacket for P2pRequest {
         bytes
     }
 }
+impl FromPacket for P2pRequest {
+    fn from_packet(packet: Vec<u8>) -> anyhow::Result<Self> {
+        if packet.len() < 3 {
+            return Err(PacketError::invalid_length(3, packet.len()).into());
+        }
+        let session_id = u16::from_be_bytes(packet[0..2].try_into().unwrap());
+        let packet = P2pRequestPacket::from_packet(packet[2..].to_vec())?;
+
+        Ok(Self { session_id, packet })
+    }
+}
 
 /// The different types of packets you can send as a request to the other peer.
 #[derive(Clone, Debug)]
