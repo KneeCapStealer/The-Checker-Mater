@@ -6,7 +6,12 @@ build = "build.rs"
 
 
 [dependencies]
-slint = "1.5.1"
+slint = "1.5.1"         # GUI
+tokio = "1.37.0"        # NET
+serde = "1.0.198"       # Serialize and Deserialze data
+ron = "0.8.1"           # Extension to Serde, for the .ron format
+anyhow = "1.0.82"       # Error handling
+thiserror = "1.0.59"    # Custom errors
 
 
 [build-dependencies]
