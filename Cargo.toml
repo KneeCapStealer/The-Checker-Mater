@@ -3,6 +3,7 @@ name = "the_checker_mater"
 version = "0.1.0"
 edition = "2021"
 build = "build.rs"
+default-run = "game.rs"
 
 
 [dependencies]
