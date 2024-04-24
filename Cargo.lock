@@ -2601,14 +2601,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "online_checkers"
-version = "0.1.0"
-dependencies = [
- "slint",
- "slint-build",
-]
-
-[[package]]
 name = "orbclient"
 version = "0.3.47"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3541,6 +3533,14 @@ name = "text-size"
 version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f18aa187839b2bdb1ad2fa35ead8c4c2976b64e4363c386d45ac0f7ee85c9233"
+
+[[package]]
+name = "the_checker_mater"
+version = "0.1.0"
+dependencies = [
+ "slint",
+ "slint-build",
+]
 
 [[package]]
 name = "thiserror"
