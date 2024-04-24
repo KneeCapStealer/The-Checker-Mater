@@ -8,7 +8,9 @@ export component Board {
     in property <length> board-length;
     in property <{x: length, y: length}> center;
 
-    in-out property <PieceData> pieces;
+    in-out property <[PieceData]> pieces: [
+        { index: 3, color: PieceColor.Black, is-king: false },
+    ];
 
     property <length> length-no-border: board-length * 96%;
     property <length> length-border: board-length - length-no-border;
@@ -41,13 +43,25 @@ export component Board {
         z: -2;
     }
 
-    for index in 32 : Rectangle {
-        property <percent> offset: mod(index, 8) < 4 ? 0% : 12.5%;
-        x: mod(index, 4) * (length-no-border * 25%) + length-no-border * offset + length-border / 2;
-        y: floor(index / 4) * (length-no-border * 12.5%) + length-border / 2;
+    property <length> square-size: length-no-border * 12.5%;
 
-	width: length-no-border * 12.5%;
-	height: length-no-border * 12.5%;
+    pure function calcSquareX(index: int) -> length {
+        mod(index, 4)
+            * length-no-border * 25%
+            + length-no-border * (mod(index, 8) < 4 ? 0% : 12.5%)
+            + length-border / 2
+    }
+
+    pure function calcSquareY(index: int) -> length {
+        floor(index / 4) * (length-no-border * 12.5%) + length-border / 2
+    }
+
+    for index in 32 : Rectangle {
+        x: calcSquareX(index);
+        y: calcSquareY(index);
+
+	width: square-size;
+	height: square-size;
 
 	background: black-color;
 
@@ -56,5 +70,14 @@ export component Board {
 		square-clicked(index);
 	    }
 	}
+    }
+
+    for piece in pieces : Piece {
+        data: piece;
+        radius: square-size / 2 - 5px;
+        pos: {
+            x: calcSquareX(piece.index) + square-size / 2,
+            y: calcSquareY(piece.index) + square-size / 2
+        };
     }
 }

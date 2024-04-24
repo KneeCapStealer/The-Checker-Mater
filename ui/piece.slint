@@ -1,13 +1,9 @@
 export component Circle {
-    in property <{x: length, y: length}> center;
     in property <length> radius;
 
     in property <brush> color;
 
     property <length> diameter: radius * 2;
-
-    x: center.x - radius;
-    y: center.y - radius;
 
     height: diameter;
     width: diameter;
@@ -30,12 +26,13 @@ export struct PieceData {
 }
 
 export component Piece {
-    in property <PieceColor> color;
+    in property <PieceData> data;
     in property <length> radius;
     in property <{x: length, y: length}> pos;
 
     x: pos.x - radius;
     y: pos.y - radius;
+    
     animate x, y {
          duration: 150ms;
          easing: ease-in-out;
@@ -45,9 +42,8 @@ export component Piece {
     height: radius * 2;
 
     Circle {
-        center: pos;
         radius: radius;
-        color: color == PieceColor.White ? white : black;
+        color: data.color == PieceColor.White ? white : black;
     }
 }
 
