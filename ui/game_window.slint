@@ -4,13 +4,16 @@ export component GameWindow inherits Window {
     preferred-width: 400px;
     preferred-height: 400px;
 
+    min-width: board.width;
+    min-height: board.height;
+
     callback clicked <=> board.square-clicked;
 
     board := Board {
         black-color: #00FF00;
         white-color: #FFFF00;
-        board-length: parent.preferred-height * 50%;
-        center: {x: root.preferred-width / 2, y: root.preferred-height / 2};
+        board-length: parent.height * 50%;
+        center: {x: parent.width / 2, y: parent.height / 2};
     }
 }
 

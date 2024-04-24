@@ -6,10 +6,13 @@ export component Board {
     in property <length> board-length;
     in property <{x: length, y: length}> center;
 
+    property <length> length-no-border: board-length * 96%;
+    property <length> length-border: board-length - length-no-border;
+
     callback square-clicked(int);
 
-    x: center.x / 2;
-    y: center.y / 2;
+    x: center.x - board-length / 2;
+    y: center.y - board-length / 2;
 
     width: board-length;
     height: board-length;
@@ -17,27 +20,30 @@ export component Board {
     // Background
     Rectangle {
         background: white-color;
+        x: parent.width * 2%;
+        y: parent.height* 2%;
+
+        width: length-no-border;
+        height: length-no-border;
+
+        border-radius: length-border * 75%;
     }
 
     // Border
     Rectangle {
         background: border-color;
+        border-radius: length-border;
 
-        x: parent.width * -2%;
-        y: parent.height * -2%;
-        z: -10;
-
-        width: parent.width * 104%;
-        height: parent.height * 104%;
+        z: -2;
     }
 
     for index in 32 : Rectangle {
         property <percent> offset: mod(index, 8) < 4 ? 0% : 12.5%;
-        x: mod(index, 4) * (board-length * 25%) + board-length * offset;
-        y: floor(index / 4) * (board-length * 12.5%);
+        x: mod(index, 4) * (length-no-border * 25%) + length-no-border * offset + length-border / 2;
+        y: floor(index / 4) * (length-no-border * 12.5%) + length-border / 2;
 
-	width: board-length * 12.5%;
-	height: board-length * 12.5%;
+	width: length-no-border * 12.5%;
+	height: length-no-border * 12.5%;
 
 	background: black-color;
 
