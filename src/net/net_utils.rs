@@ -1,3 +1,7 @@
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+
+use anyhow::anyhow;
+use local_ip_address::local_ip;
 use thiserror::Error;
 
 /// Turn the data into bytes ready to be sent over the network. The packet is in BE (Big Endian)
@@ -34,4 +38,58 @@ impl PacketError {
             reason: reason.to_string(),
         }
     }
+}
+
+#[derive(Error, Debug)]
+pub enum NetworkError {
+    #[error("Couldn't find an available port in range 6000..=7000")]
+    PortBindingError,
+    #[error("Failed to get local IPv4 address")]
+    GetIpV4Error,
+}
+
+pub async fn get_available_port() -> anyhow::Result<u16> {
+    for port_id in 6000..=7000 {
+        if let Ok(_) = tokio::net::UdpSocket::bind(("0.0.0.0", port_id)).await {
+            return Ok(port_id);
+        }
+    }
+    Err(NetworkError::PortBindingError.into())
+}
+
+pub fn get_local_ip() -> anyhow::Result<Ipv4Addr> {
+    if let Ok(IpAddr::V4(ip)) = local_ip() {
+        Ok(ip)
+    } else {
+        Err(NetworkError::GetIpV4Error.into())
+    }
+}
+
+pub fn hex_encode_ip(addr: SocketAddr) -> anyhow::Result<String> {
+    if let IpAddr::V4(ip) = addr.ip() {
+        let ip_u32: u32 = ip.into();
+
+        let mut bytes = vec![];
+        bytes.append(&mut ip_u32.to_be_bytes().to_vec());
+        bytes.append(&mut addr.port().to_be_bytes().to_vec());
+        Ok(hex::encode(bytes))
+    } else {
+        Err(NetworkError::GetIpV4Error.into())
+    }
+}
+
+pub fn hex_decode_ip(data: &str) -> anyhow::Result<SocketAddr> {
+    let bytes = match hex::decode(data) {
+        Ok(bytes) => bytes,
+        Err(_) => return Err(anyhow!("Couldn't decode hex data")),
+    };
+
+    if bytes.len() != 6 {
+        return Err(anyhow!("Wrong data length"));
+    }
+
+    let ip = u32::from_be_bytes(bytes[..4].try_into().unwrap());
+    let port = u16::from_be_bytes(bytes[4..].try_into().unwrap());
+
+    Ok(SocketAddr::new(IpAddr::V4(ip.into()), port))
 }

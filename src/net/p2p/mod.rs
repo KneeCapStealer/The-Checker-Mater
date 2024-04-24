@@ -1,3 +1,5 @@
+pub mod communicate;
+
 use anyhow::anyhow;
 
 use super::net_utils::{FromPacket, PacketError, ToByte, ToPacket};
@@ -5,7 +7,10 @@ use super::net_utils::{FromPacket, PacketError, ToByte, ToPacket};
 /// A request for P2P (Peer to Peer) connection. This moves mostly from client to host, but the
 /// host will send requests to the client, when it makes an update to the board.
 pub struct P2pRequest {
+    /// The sessions ID set by the host. Is set to 0 if it is the first time the client is talking
+    /// with the host.
     session_id: u16,
+    /// The main packet of the request.
     packet: P2pRequestPacket,
 }
 impl ToPacket for P2pRequest {
@@ -38,7 +43,10 @@ pub enum P2pRequestPacket {
     /// which is the same as the join code if working over LAN. 'username' is the username the
     /// client wishes to use.
     Connect {
+        /// The games join code. Calculated by HEX encoding the hosts IP and PORT. When on LAN, its
+        /// the code given to the client by the host.
         join_code: [u8; 12],
+        /// The clients username. Set by the clients user.
         username: String,
     },
     /// Ask the host for a copy of the correct board, so the client can resync theirs.
@@ -149,7 +157,9 @@ impl ToByte for P2pRequestPacket {
 /// A response to the `P2pResonse` struct.
 #[derive(Clone, Debug)]
 pub struct P2pResponse {
+    /// The sessions ID set randomly by the host.
     session_id: u16,
+    /// The main packet of the response.
     packet: P2pResponsePacket,
 }
 impl ToPacket for P2pResponse {
@@ -176,15 +186,23 @@ impl FromPacket for P2pResponse {
 /// The different types of packets you can send as a response to the other peer.
 #[derive(Clone, Debug)]
 pub enum P2pResponsePacket {
+    /// The packet for if an error has occured.
     Error {
+        /// The errors kind.
         kind: P2pError,
     },
+    /// The reponse to `P2pRequestPacket::Ping`.
     Pong,
+    /// Response to `P2pRequestPacket::Connect`.
     Connect {
+        /// The board color that the client will be assigned to.
         client_color: PieceColor,
+        /// The hosts username, set by the Hosts user.
         host_username: String,
     },
+    /// A response to `P2pRequestPacket::Resync`, features the hosts version of the game board.
     Resync {
+        /// The hosts version of the game board, which the client will copy.
         board: Vec<Tile>,
     },
 }
@@ -308,8 +326,12 @@ impl ToByte for P2pResponsePacket {
     }
 }
 
+/// The error used by `P2pResponsePacket`
 #[derive(Clone, Debug)]
 pub enum P2pError {
+    /// This errorkind is caused by the client having an outdated, or invalid board. An example of
+    /// when this error is thrown, is when the clients wants to move a piece to an invalid
+    /// position.
     InvalidBoard,
 }
 impl ToByte for P2pError {
