@@ -46,6 +46,22 @@ pub enum NetworkError {
     PortBindingError,
     #[error("Failed to get local IPv4 address")]
     GetIpV4Error,
+    #[error("Error occured while sending data: {details:?}")]
+    SendError { details: String },
+    #[error("Error occured while recieving data: {details:?}")]
+    RecieveError { details: String },
+}
+impl NetworkError {
+    pub fn send_error(details: &str) -> Self {
+        Self::SendError {
+            details: details.to_string(),
+        }
+    }
+    pub fn recieve_error(details: &str) -> Self {
+        Self::RecieveError {
+            details: details.to_string(),
+        }
+    }
 }
 
 pub async fn get_available_port() -> anyhow::Result<u16> {
