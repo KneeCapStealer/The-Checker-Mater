@@ -13,6 +13,12 @@ pub struct P2pRequest {
     /// The main packet of the request.
     packet: P2pRequestPacket,
 }
+impl P2pRequest {
+    /// Create a new `P2pRequest` from the sessions ID and the packet.
+    pub fn new(session_id: u16, packet: P2pRequestPacket) -> Self {
+        Self { session_id, packet }
+    }
+}
 impl ToPacket for P2pRequest {
     fn to_packet(&self) -> Vec<u8> {
         let mut bytes = vec![];
@@ -161,6 +167,12 @@ pub struct P2pResponse {
     session_id: u16,
     /// The main packet of the response.
     packet: P2pResponsePacket,
+}
+impl P2pResponse {
+    /// Create a new `P2pResponse` from the sessions ID and the packet.
+    pub fn new(session_id: u16, packet: P2pResponsePacket) -> Self {
+        Self { session_id, packet }
+    }
 }
 impl ToPacket for P2pResponse {
     fn to_packet(&self) -> Vec<u8> {
