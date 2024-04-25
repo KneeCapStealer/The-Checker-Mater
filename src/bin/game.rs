@@ -1,28 +1,14 @@
-use slint::Model;
+use slint::ComponentHandle;
 
-slint::include_modules!();
+use the_checker_mater::checkers_game::Board;
+use the_checker_mater::checkers_game::GameWindow;
+use the_checker_mater::checkers_game::PieceColor;
 
 fn main() -> Result<(), slint::PlatformError> {
     let game = GameWindow::new()?;
-    let pieces = game.get_pieces();
+    let mut board = Board::new(&game);
 
-    game.set_pieces(pieces.clone());
-
-    game.on_clicked({
-        let game_weak = game.as_weak();
-        let pieces = pieces.clone();
-
-        move |index: i32, last_pressed: i32| {
-            let game = game_weak.unwrap();
-
-            let new_data = PieceData {
-                index,
-                ..pieces.row_data(0).unwrap()
-            };
-
-            pieces.set_row_data(0, new_data);
-        }
-    });
+    board.start_new_game(PieceColor::White);
 
     game.run()
 }
