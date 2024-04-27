@@ -40,8 +40,9 @@ impl Direction {
 pub struct Board {
     game: Weak<GameWindow>,
     pieces_model: Rc<slint::VecModel<PieceData>>,
-    tiles: [Tile; 32],
     player_color: PieceColor,
+    tiles: [Tile; 32],
+    squares: Rc<slint::VecModel<BoardSquare>>,
     #[allow(unused)]
     board_white_color: slint::Brush,
     #[allow(unused)]
@@ -59,10 +60,16 @@ impl Board {
 
         let tiles = Board::default_setup(PieceColor::default());
 
+        let squares: Vec<BoardSquare> = vec![BoardSquare { marked: false }; 32];
+
+        let squares = Rc::new(slint::VecModel::from(squares));
+        game.set_squares(squares.clone().into());
+
         Board {
             game: game.as_weak(),
             pieces_model,
             tiles,
+            squares,
             ..Default::default()
         }
     }
@@ -110,6 +117,36 @@ impl Board {
 
         let game = self.game.unwrap();
         game.set_pieces(self.pieces_model.clone().into());
+
+        if let Some(moves) = self.get_legal_moves() {
+            let mark_indicies: Vec<usize> = moves.iter().map(|mov| mov.end).collect();
+            self.mark_squares(mark_indicies.as_slice());
+        }
+    }
+
+    pub fn move_piece(&mut self, mov: Move) {
+        self.tiles.swap(mov.start, mov.end);
+
+        if let Some(captured) = mov.captured {
+            self.tiles[captured] = None;
+        }
+        let new_tiles: Vec<PieceData> = self.tiles.iter().filter_map(|tile| tile.clone()).collect();
+
+        self.pieces_model.set_vec(new_tiles);
+    }
+
+    pub fn mark_squares(&mut self, indices: &[usize]) {
+        for idx in indices {
+            self.squares
+                .set_row_data(*idx, BoardSquare { marked: true });
+        }
+    }
+
+    pub fn reset_squares(&mut self) {
+        for idx in 0..32 {
+            self.squares
+                .set_row_data(idx, BoardSquare { marked: false });
+        }
     }
 
     pub fn tile_is_empty(&self, idx: usize) -> bool {
@@ -129,10 +166,6 @@ impl Board {
         self.tiles[idx]
             .as_ref()
             .is_some_and(|x| x.color != self.player_color)
-    }
-
-    pub fn move_piece(&mut self, mov: Move) {
-        todo!();
     }
 
     pub fn get_legal_moves_piece(&self, idx: usize) -> Option<Vec<Move>> {

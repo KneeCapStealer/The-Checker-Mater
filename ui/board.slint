@@ -1,23 +1,25 @@
 import { Piece, PieceData, PieceColor } from "piece.slint";
 
+export struct BoardSquare {
+    marked: bool,
+}
+
 export component Board {
-    in property <color> black-color: #121212;
-    in property <color> white-color: #FFFFFF;
+    in property <color> square-color: #121212;
+    in property <color> back-color: #FFFFFF;
+    in property <color> marked-color: #e3dc5d;
     in property <color> border-color: #000000;
 
     in property <length> board-length;
     in property <{x: length, y: length}> center;
 
-    in-out property <[PieceData]> pieces: [
-        { index: 3, color: PieceColor.Black, is-king: false },
-        { index: 5, color: PieceColor.Black, is-king: false },
-    ];
-    in-out property <int> last-pressed: 0;
+    in-out property <[PieceData]> pieces;
+    in-out property <[BoardSquare]> squares;
 
     property <length> length-no-border: board-length * 96%;
     property <length> length-border: board-length - length-no-border;
 
-    callback square-clicked(int, int);
+    callback square-clicked(int);
 
     x: center.x - board-length / 2;
     y: center.y - board-length / 2;
@@ -27,7 +29,7 @@ export component Board {
 
     // Background
     Rectangle {
-        background: white-color;
+        background: back-color;
         x: parent.width * 2%;
         y: parent.height* 2%;
 
@@ -45,32 +47,31 @@ export component Board {
         z: -2;
     }
 
-    property <length> square-size: length-no-border * 12.5%;
 
-    pure function calcSquareX(index: int) -> length {
+    pure function calc-square-x(index: int) -> length {
         mod(index, 4)
             * length-no-border * 25%
             + length-no-border * (mod(index, 8) < 4 ? 0% : 12.5%)
             + length-border / 2
     }
 
-    pure function calcSquareY(index: int) -> length {
+    pure function calc-square-y(index: int) -> length {
         floor(index / 4) * (length-no-border * 12.5%) + length-border / 2
     }
 
-    for index in 32 : Rectangle {
-        x: calcSquareX(index);
-        y: calcSquareY(index);
+    property <length> square-size: length-no-border * 12.5%;
+    for square[index] in squares: Rectangle {
+        x: calc-square-x(index);
+        y: calc-square-y(index);
 
 	width: square-size;
 	height: square-size;
 
-	background: black-color;
+	background: square.marked ? marked-color : square-color;
 
 	TouchArea {
 	    clicked => {
-		square-clicked(index, last-pressed);
-                last-pressed = index;
+		square-clicked(index);
 	    }
 	}
     }
@@ -79,8 +80,8 @@ export component Board {
         data: piece;
         radius: square-size / 2 - 5px;
         pos: {
-            x: calcSquareX(piece.index) + square-size / 2,
-            y: calcSquareY(piece.index) + square-size / 2
+            x: calc-square-x(piece.index) + square-size / 2,
+            y: calc-square-y(piece.index) + square-size / 2
         };
     }
 }
