@@ -31,7 +31,7 @@ export component Board {
     Rectangle {
         background: back-color;
         x: parent.width * 2%;
-        y: parent.height* 2%;
+        y: parent.height * 2%;
 
         width: length-no-border;
         height: length-no-border;
@@ -47,12 +47,8 @@ export component Board {
         z: -2;
     }
 
-
     pure function calc-square-x(index: int) -> length {
-        mod(index, 4)
-            * length-no-border * 25%
-            + length-no-border * (mod(index, 8) < 4 ? 0% : 12.5%)
-            + length-border / 2
+        mod(index, 4) * length-no-border * 25% + length-no-border * (mod(index, 8) < 4 ? 0% : 12.5%) + length-border / 2
     }
 
     pure function calc-square-y(index: int) -> length {
@@ -64,24 +60,21 @@ export component Board {
         x: calc-square-x(index);
         y: calc-square-y(index);
 
-	width: square-size;
-	height: square-size;
+        width: square-size;
+        height: square-size;
 
-	background: square.marked ? marked-color : square-color;
+        background: square.marked ? marked-color : square-color;
 
-	TouchArea {
-	    clicked => {
-		square-clicked(index);
-	    }
-	}
+        TouchArea {
+            clicked => {
+                square-clicked(index);
+            }
+        }
     }
 
-    for piece in pieces : Piece {
+    for piece[index] in pieces: Piece {
         data: piece;
         radius: square-size / 2 - 5px;
-        pos: {
-            x: calc-square-x(piece.index) + square-size / 2,
-            y: calc-square-y(piece.index) + square-size / 2
-        };
+        pos: { x: calc-square-x(index) + square-size / 2, y: calc-square-y(index) + square-size / 2 };
     }
 }

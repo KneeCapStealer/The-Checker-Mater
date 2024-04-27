@@ -20,7 +20,7 @@ export enum PieceColor {
 }
 
 export struct PieceData {
-    index: int,
+    is-active: bool,
     color: PieceColor,
     is-king: bool,
 }
@@ -32,18 +32,16 @@ export component Piece {
 
     x: pos.x - radius;
     y: pos.y - radius;
-    
     animate x, y {
-         duration: 150ms;
-         easing: ease-in-out;
+        duration: 150ms;
+        easing: ease-in-out;
     }
 
     width: radius * 2;
     height: radius * 2;
 
-    Circle {
+    if data.is-active: Circle {
         radius: radius;
         color: data.color == PieceColor.White ? white : black;
     }
 }
-
