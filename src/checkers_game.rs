@@ -21,10 +21,10 @@ pub struct Move {
 
 #[derive(Clone, Copy)]
 enum Direction {
-    UpRight = -3,
-    UpLeft = -4,
+    UpRight = -4,
+    UpLeft = -5,
     DownRight = 4,
-    DownLeft = 5,
+    DownLeft = 3,
 }
 
 impl Direction {
@@ -37,32 +37,22 @@ impl Direction {
 #[derive(Default, Clone)]
 pub struct Board {
     game: Weak<GameWindow>,
-    tiles: Rc<slint::VecModel<PieceData>>,
+    pieces: Rc<slint::VecModel<PieceData>>,
     player_color: PieceColor,
     squares: Rc<slint::VecModel<BoardSquare>>,
-    #[allow(unused)]
-    board_white_color: slint::Brush,
-    #[allow(unused)]
-    board_black_color: slint::Brush,
-    #[allow(unused)]
-    piece_white_color: slint::Brush,
-    #[allow(unused)]
-    piece_black_color: slint::Brush,
 }
 
 impl Board {
     pub fn new(game: &GameWindow) -> Board {
-        let tiles_vec: Vec<PieceData> = vec![];
-        let tiles = Rc::new(slint::VecModel::from(tiles_vec));
+        let pieces = Rc::new(slint::VecModel::from(vec![]));
 
         let squares: Vec<BoardSquare> = vec![BoardSquare { marked: false }; 32];
-
         let squares = Rc::new(slint::VecModel::from(squares));
         game.set_squares(squares.clone().into());
 
         Board {
             game: game.as_weak(),
-            tiles,
+            pieces,
             squares,
             ..Default::default()
         }
@@ -102,11 +92,12 @@ impl Board {
 
     pub fn start_new_game(&mut self, color: PieceColor) {
         self.player_color = color;
-        self.tiles = Rc::new(slint::VecModel::from(Board::default_setup(color)));
+        self.pieces = Rc::new(slint::VecModel::from(Board::default_setup(color)));
 
         let game = self.game.unwrap();
-        game.set_pieces(self.tiles.clone().into());
+        game.set_pieces(self.pieces.clone().into());
 
+        self.reset_squares();
         if let Some(moves) = self.get_legal_moves() {
             let mark_indicies: Vec<usize> = moves.iter().map(|mov| mov.end).collect();
             self.mark_squares(mark_indicies.as_slice());
@@ -114,18 +105,18 @@ impl Board {
     }
 
     pub fn move_piece(&mut self, mov: Move) {
-        let start_data = self.tiles.row_data(mov.start).unwrap();
-        let end_data = self.tiles.row_data(mov.end).unwrap();
+        let start_data = self.pieces.row_data(mov.start).unwrap();
+        let end_data = self.pieces.row_data(mov.end).unwrap();
 
-        self.tiles.set_row_data(mov.end, start_data);
-        self.tiles.set_row_data(mov.start, end_data);
+        self.pieces.set_row_data(mov.end, start_data);
+        self.pieces.set_row_data(mov.start, end_data);
 
         if let Some(captured) = mov.captured {
-            self.tiles.set_row_data(
+            self.pieces.set_row_data(
                 captured,
                 PieceData {
                     is_active: false,
-                    ..self.tiles.row_data(captured).unwrap()
+                    ..self.pieces.row_data(captured).unwrap()
                 },
             )
         }
@@ -145,24 +136,24 @@ impl Board {
         }
     }
 
-    pub fn tile_is_empty(&self, idx: usize) -> bool {
-        assert!(idx < self.tiles.row_count());
-        !self.tiles.row_data(idx).unwrap().is_active
+    pub fn piece_is_empty(&self, idx: usize) -> bool {
+        assert!(idx < self.pieces.row_count());
+        !self.pieces.row_data(idx).unwrap().is_active
     }
 
-    pub fn tile_is_player(&self, idx: usize) -> bool {
-        assert!(idx < self.tiles.row_count());
-        self.tiles.row_data(idx).unwrap().color == self.player_color
+    pub fn piece_is_player(&self, idx: usize) -> bool {
+        assert!(idx < self.pieces.row_count());
+        self.pieces.row_data(idx).unwrap().color == self.player_color
     }
 
-    pub fn tile_is_enemy(&self, idx: usize) -> bool {
-        assert!(idx < self.tiles.row_count());
-        self.tiles.row_data(idx).unwrap().color != self.player_color
+    pub fn piece_is_enemy(&self, idx: usize) -> bool {
+        assert!(idx < self.pieces.row_count());
+        self.pieces.row_data(idx).unwrap().color != self.player_color
     }
 
     pub fn get_legal_moves_piece(&self, idx: usize) -> Option<Vec<Move>> {
-        assert!(idx < self.tiles.row_count());
-        let piece = self.tiles.row_data(idx).unwrap();
+        assert!(idx < self.pieces.row_count());
+        let piece = self.pieces.row_data(idx).unwrap();
         if !piece.is_active {
             return None;
         }
@@ -232,17 +223,17 @@ impl Board {
         let mut moves: Option<Vec<Move>> = None;
         for direction in Direction::values() {
             if !piece.is_king {
-                if (direction as i32) > 0 && self.tile_is_player(idx) {
+                if (direction as i32) > 0 && self.piece_is_player(idx) {
                     continue;
                 }
 
-                if (direction as i32) < 0 && self.tile_is_enemy(idx) {
+                if (direction as i32) < 0 && self.piece_is_enemy(idx) {
                     continue;
                 }
             }
 
             if let Some(mut next_moves) = check_move(
-                self.tiles.clone(),
+                self.pieces.clone(),
                 idx,
                 idx,
                 piece.color.as_opposite(),
@@ -258,8 +249,8 @@ impl Board {
 
     pub fn get_legal_moves(&self) -> Option<Vec<Move>> {
         let mut moves = None;
-        for idx in 0..self.tiles.row_count() {
-            if self.tiles.row_data(idx)?.color != self.player_color {
+        for idx in 0..self.pieces.row_count() {
+            if self.pieces.row_data(idx)?.color != self.player_color {
                 continue;
             }
 

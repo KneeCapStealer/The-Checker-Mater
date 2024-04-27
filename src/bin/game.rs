@@ -15,7 +15,7 @@ fn main() -> Result<(), slint::PlatformError> {
             let selected_piece = unsafe { SELECTED_PIECE };
             println!("Index: {} | Selected: {}", index, selected_piece);
 
-            if board.tile_is_player(selected_piece) {
+            if board.piece_is_player(selected_piece) {
                 let moves = board.get_legal_moves_piece(selected_piece);
                 if let Some(moves) = moves {
                     for mov in moves {
@@ -25,6 +25,13 @@ fn main() -> Result<(), slint::PlatformError> {
                     }
                 }
             }
+
+            board.reset_squares();
+            if let Some(moves) = board.get_legal_moves() {
+                let mark_indicies: Vec<usize> = moves.iter().map(|mov| mov.end).collect();
+                board.mark_squares(mark_indicies.as_slice());
+            }
+
             unsafe {
                 SELECTED_PIECE = index as usize;
             }
