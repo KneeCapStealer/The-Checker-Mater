@@ -13,7 +13,6 @@ fn main() -> Result<(), slint::PlatformError> {
     game.on_clicked({
         move |index: i32| {
             let selected_piece = unsafe { SELECTED_PIECE };
-            println!("Index: {} | Selected: {}", index, selected_piece);
 
             if board.piece_is_player(selected_piece) {
                 let moves = board.get_legal_moves_piece(selected_piece);

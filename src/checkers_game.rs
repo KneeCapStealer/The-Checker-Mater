@@ -21,16 +21,41 @@ pub struct Move {
 
 #[derive(Clone, Copy)]
 enum Direction {
-    UpRight = -4,
     UpLeft = -5,
-    DownRight = 4,
+    UpRight = -4,
     DownLeft = 3,
+    DownRight = 4,
 }
 
 impl Direction {
     fn values() -> [Direction; 4] {
         use Direction::*;
         [UpRight, UpLeft, DownLeft, DownRight]
+    }
+
+    fn from_index(&self, index: usize) -> i32 {
+        let row_type = (((index % 8) / 4) as f32).floor() as i32;
+        *self as i32 + row_type
+    }
+
+    fn is_left(&self) -> bool {
+        use Direction::*;
+        matches!(self, UpLeft | DownLeft)
+    }
+
+    fn is_right(&self) -> bool {
+        use Direction::*;
+        matches!(self, UpRight | DownRight)
+    }
+
+    fn is_down(&self) -> bool {
+        use Direction::*;
+        matches!(self, DownRight | DownLeft)
+    }
+
+    fn is_up(&self) -> bool {
+        use Direction::*;
+        matches!(self, UpRight | UpLeft)
     }
 }
 
@@ -167,7 +192,7 @@ impl Board {
             direction: Direction,
             is_taking: bool,
         ) -> Option<Vec<Move>> {
-            let next = idx as i32 + direction as i32;
+            let next = idx as i32 + direction.from_index(idx);
             if next < 0 || next > tiles.row_count() as i32 {
                 return None;
             }
@@ -222,12 +247,21 @@ impl Board {
 
         let mut moves: Option<Vec<Move>> = None;
         for direction in Direction::values() {
+            if (((idx % 8) / 4) as f32).floor() as i32 == 0 && direction.is_left() && idx % 4 == 0 {
+                continue;
+            }
+
+            if (((idx % 8) / 4) as f32).floor() as i32 == 1 && direction.is_right() && idx % 4 == 3
+            {
+                continue;
+            }
+
             if !piece.is_king {
-                if (direction as i32) > 0 && self.piece_is_player(idx) {
+                if direction.is_down() && self.piece_is_player(idx) {
                     continue;
                 }
 
-                if (direction as i32) < 0 && self.piece_is_enemy(idx) {
+                if direction.is_up() && self.piece_is_enemy(idx) {
                     continue;
                 }
             }
