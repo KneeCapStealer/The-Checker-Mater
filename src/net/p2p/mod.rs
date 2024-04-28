@@ -2,16 +2,20 @@ pub mod communicate;
 
 use anyhow::anyhow;
 
-use super::net_utils::{FromPacket, PacketError, ToByte, ToPacket};
+use super::{
+    net_loop::NetworkSendable,
+    net_utils::{FromPacket, PacketError, ToByte, ToPacket},
+};
 
 /// A request for P2P (Peer to Peer) connection. This moves mostly from client to host, but the
 /// host will send requests to the client, when it makes an update to the board.
+#[derive(Clone, Debug)]
 pub struct P2pRequest {
     /// The sessions ID set by the host. Is set to 0 if it is the first time the client is talking
     /// with the host.
-    session_id: u16,
+    pub session_id: u16,
     /// The main packet of the request.
-    packet: P2pRequestPacket,
+    pub packet: P2pRequestPacket,
 }
 impl P2pRequest {
     /// Create a new `P2pRequest` from the sessions ID and the packet.
@@ -39,6 +43,7 @@ impl FromPacket for P2pRequest {
         Ok(Self { session_id, packet })
     }
 }
+impl NetworkSendable for P2pRequest {}
 
 /// The different types of packets you can send as a request to the other peer.
 #[derive(Clone, Debug)]
@@ -104,9 +109,9 @@ impl FromPacket for P2pRequestPacket {
             return Err(PacketError::Empty.into());
         }
         match packet[0] {
-            // Connect
-            1 => Ok(Self::Ping),
             // Ping
+            1 => Ok(Self::Ping),
+            // Connect
             2 => {
                 if packet.len() < 14 {
                     return Err(PacketError::invalid_length(14, packet.len()).into());
@@ -127,7 +132,9 @@ impl FromPacket for P2pRequestPacket {
                     username,
                 })
             }
+            // Resync
             3 => Ok(Self::Resync),
+            // MovePiece
             4 => {
                 if packet.len() != 3 {
                     return Err(PacketError::invalid_length(3, packet.len()).into());
@@ -138,6 +145,7 @@ impl FromPacket for P2pRequestPacket {
 
                 Ok(Self::MovePiece { from, to })
             }
+            // EndTurn
             5 => Ok(Self::EndTurn),
             _ => Err(
                 PacketError::data_error(&format!("Not valid packet type: {}", packet[0])).into(),
@@ -164,9 +172,9 @@ impl ToByte for P2pRequestPacket {
 #[derive(Clone, Debug)]
 pub struct P2pResponse {
     /// The sessions ID set randomly by the host.
-    session_id: u16,
+    pub session_id: u16,
     /// The main packet of the response.
-    packet: P2pResponsePacket,
+    pub packet: P2pResponsePacket,
 }
 impl P2pResponse {
     /// Create a new `P2pResponse` from the sessions ID and the packet.
@@ -188,12 +196,13 @@ impl FromPacket for P2pResponse {
             return Err(PacketError::invalid_length(3, packet.len()).into());
         }
 
-        let session_id = u16::from_be_bytes(packet[1..3].try_into().unwrap());
-        let packet = P2pResponsePacket::from_packet(packet[3..].to_vec())?;
+        let session_id = u16::from_be_bytes(packet[0..2].try_into().unwrap());
+        let packet = P2pResponsePacket::from_packet(packet[2..].to_vec())?;
 
         Ok(Self { session_id, packet })
     }
 }
+impl NetworkSendable for P2pResponse {}
 
 /// The different types of packets you can send as a response to the other peer.
 #[derive(Clone, Debug)]

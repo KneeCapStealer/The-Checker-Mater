@@ -14,6 +14,7 @@ serde = { version = "1.0.198", features = ["derive"] }  # Serializing and Deseri
 ron = "0.8.1"                                           # Extension to Serde, for the .ron format
 anyhow = "1.0.82"                                       # Error handling
 thiserror = "1.0.59"                                    # Custom errors
+as-any = "0.3.1"
 
 
 [build-dependencies]

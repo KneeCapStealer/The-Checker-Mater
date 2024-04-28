@@ -1,6 +1,6 @@
 use std::{
+    error,
     net::{IpAddr, Ipv4Addr, SocketAddr},
-    str::FromStr,
 };
 
 use anyhow::anyhow;
@@ -53,6 +53,8 @@ pub enum NetworkError {
     SendError { details: String },
     #[error("Error occured while recieving data: {details:?}")]
     RecieveError { details: String },
+    #[error("Response Type Error: Got wrong data type in return")]
+    ResponseTypeError,
 }
 impl NetworkError {
     pub fn send_error(details: &str) -> Self {
