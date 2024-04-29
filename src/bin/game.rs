@@ -11,6 +11,8 @@ fn main() -> Result<(), slint::PlatformError> {
     board.start_new_game(PieceColor::White);
 
     game.on_clicked({
+        let mut board = board.clone();
+
         move |index: i32| {
             let selected_piece = unsafe { SELECTED_PIECE };
 
