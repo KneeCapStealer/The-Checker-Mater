@@ -13,6 +13,16 @@ impl PieceColor {
     }
 }
 
+impl PieceData {
+    const fn default() -> Self {
+        PieceData {
+            is_king: false,
+            is_active: false,
+            color: PieceColor::White,
+        }
+    }
+}
+
 /// Struct defining what pieces are moved
 /// and an optional captured piece
 #[derive(Clone, Copy, Debug)]
@@ -100,7 +110,7 @@ impl Board {
 
         let mut tiles: Vec<PieceData> = vec![
             PieceData {
-                is_active: true,
+                is_active: false,
                 color: enemy_color,
                 is_king: false,
             };
@@ -144,11 +154,18 @@ impl Board {
 
     /// Takes a `Move` struct and performs the move described within
     pub fn move_piece(&mut self, mov: Move) {
-        let start_data = self.pieces.row_data(mov.start).unwrap();
-        let end_data = self.pieces.row_data(mov.end).unwrap();
+        let mut start_data = self.pieces.row_data(mov.start).unwrap();
+
+        if self.piece_is_player(mov.start) && mov.end < 4 {
+            start_data.is_king = true;
+        }
+
+        if self.piece_is_enemy(mov.start) && mov.end >= 32 - 4 {
+            start_data.is_king = true;
+        }
 
         self.pieces.set_row_data(mov.end, start_data);
-        self.pieces.set_row_data(mov.start, end_data);
+        self.pieces.set_row_data(mov.start, PieceData::default());
 
         if let Some(captured) = mov.captured {
             self.pieces.set_row_data(
@@ -186,13 +203,39 @@ impl Board {
     /// Returns true if the `index` corresponds to a player piece on the board
     pub fn piece_is_player(&self, index: usize) -> bool {
         assert!(index < self.pieces.row_count());
-        self.pieces.row_data(index).unwrap().color == self.player_color
+        let piece = self.pieces.row_data(index).unwrap();
+        piece.color == self.player_color && piece.is_active
     }
 
     /// Returns true if the `index` corresponds to a non-player piece on the board
     pub fn piece_is_enemy(&self, index: usize) -> bool {
         assert!(index < self.pieces.row_count());
-        self.pieces.row_data(index).unwrap().color != self.player_color
+        let piece = self.pieces.row_data(index).unwrap();
+        piece.color != self.player_color && piece.is_active
+    }
+
+    pub fn get_player_piece_count(&self) -> u8 {
+        let mut count = 0;
+        for i in 0..32 {
+            count += self.piece_is_player(i) as u8;
+        }
+        count
+    }
+
+    pub fn get_enemy_piece_count(&self) -> u8 {
+        let mut count = 0;
+        for i in 0..32 {
+            count += self.piece_is_enemy(i) as u8;
+        }
+        count
+    }
+
+    pub fn get_empty_piece_count(&self) -> u8 {
+        let mut count = 0;
+        for i in 0..32 {
+            count += self.piece_is_empty(i) as u8;
+        }
+        count
     }
 
     /// Get's all the legal moves for the given piece

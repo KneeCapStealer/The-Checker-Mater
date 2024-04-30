@@ -1,9 +1,12 @@
 export component Circle {
     in property <length> radius;
-
+    in property <{x: length, y: length}> center-pos;
     in property <brush> color;
 
     property <length> diameter: radius * 2;
+
+    x: center-pos.x - radius;
+    y: center-pos.y - radius;
 
     height: diameter;
     width: diameter;
@@ -36,7 +39,14 @@ export component Piece {
     width: radius * 2;
     height: radius * 2;
 
+    if data.is-active && data.is-king: Circle {
+        center-pos: { x: radius, y: radius };
+        radius: radius * 107.5%;
+        color: crimson;
+    }
+
     if data.is-active: Circle {
+        center-pos: { x: radius, y: radius };
         radius: radius;
         color: data.color == PieceColor.White ? white : black;
     }

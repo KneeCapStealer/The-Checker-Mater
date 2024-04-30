@@ -5,6 +5,7 @@ use the_checker_mater::checkers_game::{Board, GameWindow, PieceColor};
 static mut SELECTED_PIECE: usize = 0;
 
 fn main() -> Result<(), slint::PlatformError> {
+    std::env::set_var("RUST_BACKTRACE", "1");
     let game = GameWindow::new()?;
     let mut board = Board::new(&game);
 
