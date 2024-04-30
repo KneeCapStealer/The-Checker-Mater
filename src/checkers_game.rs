@@ -110,7 +110,7 @@ impl Board {
 
         let mut tiles: Vec<PieceData> = vec![
             PieceData {
-                is_active: false,
+                is_active: true,
                 color: enemy_color,
                 is_king: false,
             };
