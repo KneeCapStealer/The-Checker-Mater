@@ -1,4 +1,4 @@
-use std::net::SocketAddr;
+use std::{net::SocketAddr, sync::Arc};
 
 use crate::net::{
     net_loop::NetworkSendable,
@@ -17,7 +17,7 @@ use crate::net::{
 /// send_p2p_packet::<P2pRequest>(socket, request, to_address)?;
 /// ```
 pub async fn send_p2p_packet<T: ToPacket>(
-    socket: &tokio::net::UdpSocket,
+    socket: &Arc<tokio::net::UdpSocket>,
     packet: T,
     to: SocketAddr,
 ) -> anyhow::Result<usize> {
@@ -36,7 +36,7 @@ pub async fn send_p2p_packet<T: ToPacket>(
 /// let (response, addr) = recieve_p2p_packet::<P2pResponse>(socket)?;
 /// ```
 pub async fn recieve_p2p_packet<T: FromPacket>(
-    socket: &tokio::net::UdpSocket,
+    socket: &Arc<tokio::net::UdpSocket>,
 ) -> anyhow::Result<(T, SocketAddr)> {
     let mut buffer = vec![0; 1024];
     match socket.recv_from(&mut buffer).await {
@@ -69,8 +69,7 @@ pub async fn recieve_packet_as_bytes(
     match socket.recv_from(&mut buffer).await {
         Ok((len, addr)) => {
             buffer.resize(len, 0);
-            let response = response_buffer::from_packet(buffer.to_vec())?;
-            Ok((response, addr))
+            Ok((buffer, addr))
         }
         Err(e) => {
             return Err(NetworkError::recieve_error(&e.to_string()).into());

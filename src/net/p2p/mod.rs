@@ -56,7 +56,7 @@ pub enum P2pRequestPacket {
     Connect {
         /// The games join code. Calculated by HEX encoding the hosts IP and PORT. When on LAN, its
         /// the code given to the client by the host.
-        join_code: [u8; 12],
+        join_code: String,
         /// The clients username. Set by the clients user.
         username: String,
     },
@@ -84,7 +84,7 @@ impl ToPacket for P2pRequestPacket {
             } => {
                 bytes.append(&mut self.to_u8().to_be_bytes().to_vec()); // Packet type code
 
-                bytes.append(&mut join_code.to_vec());
+                bytes.append(&mut join_code.as_bytes().to_vec());
                 bytes.append(&mut username.as_bytes().to_vec());
             }
             Self::Resync => {
@@ -116,7 +116,15 @@ impl FromPacket for P2pRequestPacket {
                 if packet.len() < 14 {
                     return Err(PacketError::invalid_length(14, packet.len()).into());
                 }
-                let join_code: [u8; 12] = packet[1..13].try_into().unwrap();
+                let join_code = match String::from_utf8(packet[1..13].to_vec()) {
+                    Ok(string) => string,
+                    Err(_) => {
+                        return Err(PacketError::data_error(
+                            "Invalid UFT8 encoded values for username",
+                        )
+                        .into())
+                    }
+                };
                 let username = match String::from_utf8(packet[13..].to_vec()) {
                     Ok(string) => string,
                     Err(_) => {
@@ -205,7 +213,7 @@ impl FromPacket for P2pResponse {
 impl NetworkSendable for P2pResponse {}
 
 /// The different types of packets you can send as a response to the other peer.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum P2pResponsePacket {
     /// The packet for if an error has occured.
     Error {
@@ -226,6 +234,23 @@ pub enum P2pResponsePacket {
         /// The hosts version of the game board, which the client will copy.
         board: Vec<Tile>,
     },
+}
+impl P2pResponsePacket {
+    /// The packet for if an error has occured.
+    pub fn error(kind: P2pError) -> Self {
+        Self::Error { kind }
+    }
+    /// Response to `P2pRequestPacket::Connect`.
+    pub fn connect(client_color: PieceColor, host_username: String) -> Self {
+        Self::Connect {
+            client_color,
+            host_username,
+        }
+    }
+    /// A response to `P2pRequestPacket::Resync`, features the hosts version of the game board.
+    pub fn resync(board: Vec<Tile>) -> Self {
+        Self::Resync { board }
+    }
 }
 impl ToPacket for P2pResponsePacket {
     fn to_packet(&self) -> Vec<u8> {
@@ -348,17 +373,30 @@ impl ToByte for P2pResponsePacket {
 }
 
 /// The error used by `P2pResponsePacket`
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum P2pError {
     /// This errorkind is caused by the client having an outdated, or invalid board. An example of
     /// when this error is thrown, is when the clients wants to move a piece to an invalid
     /// position.
     InvalidBoard,
+    /// This errorkind is caused by the client sending a package with a wrong Join code.
+    InvalidJoinCode,
+    /// This errorkind is caused by tge client sending a package with an invalid session Id.
+    InvalidSessionId,
+    /// This errorkind is caused by the client attempting jo join a game that is already full.
+    FullGameSession,
+    /// THis errorkind is caused by data flowing the wrong direction. E.g. when a Host tries to
+    /// send a `P2pRequest::Connect` to the client.
+    WrongDirection,
 }
 impl ToByte for P2pError {
     fn to_u8(&self) -> u8 {
         match self {
             Self::InvalidBoard => 0,
+            Self::InvalidJoinCode => 1,
+            Self::InvalidSessionId => 2,
+            Self::FullGameSession => 3,
+            Self::WrongDirection => 4,
         }
     }
 }
@@ -367,13 +405,20 @@ impl TryFrom<u8> for P2pError {
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
             0 => Ok(Self::InvalidBoard),
-            _ => Err(anyhow!("Can only take 0 for P2p Error, got {}", value)),
+            1 => Ok(Self::InvalidJoinCode),
+            2 => Ok(Self::InvalidSessionId),
+            3 => Ok(Self::FullGameSession),
+            4 => Ok(Self::WrongDirection),
+            _ => Err(anyhow!(
+                "Can only take values in range 0..=4 for P2p Error, got {}",
+                value
+            )),
         }
     }
 }
 
 /// THIS IS A TEMP ENUM
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum PieceColor {
     White,
     Black,
@@ -400,20 +445,24 @@ impl TryFrom<u8> for PieceColor {
     }
 }
 /// THIS IS A TEMP STRUCT
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Piece {
     color: PieceColor,
     is_king: bool,
 }
 impl ToByte for Piece {
     fn to_u8(&self) -> u8 {
-        unimplemented!()
+        0
     }
 }
 impl TryFrom<u8> for Piece {
     type Error = anyhow::Error;
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
-        unimplemented!()
+    fn try_from(_value: u8) -> Result<Self, Self::Error> {
+        let piece = Self {
+            color: PieceColor::White,
+            is_king: false,
+        };
+        Ok(piece)
     }
 }
 /// THIS IS A TEMP TYPE

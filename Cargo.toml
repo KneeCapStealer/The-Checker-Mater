@@ -15,6 +15,7 @@ ron = "0.8.1"                                           # Extension to Serde, fo
 anyhow = "1.0.82"                                       # Error handling
 thiserror = "1.0.59"                                    # Custom errors
 as-any = "0.3.1"
+rand = "0.8.5"
 
 
 [build-dependencies]

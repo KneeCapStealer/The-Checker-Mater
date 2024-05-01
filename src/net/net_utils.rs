@@ -1,7 +1,4 @@
-use std::{
-    error,
-    net::{IpAddr, Ipv4Addr, SocketAddr},
-};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
 use anyhow::anyhow;
 use local_ip_address::local_ip;

@@ -3705,6 +3705,7 @@ dependencies = [
  "as-any",
  "hex",
  "local-ip-address",
+ "rand",
  "ron",
  "serde",
  "slint",
