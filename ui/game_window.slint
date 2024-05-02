@@ -1,11 +1,18 @@
 import { Board } from "board.slint";
 
+export enum CurrentWindow {
+    Start,
+    Game,
+}
+
 export component GameWindow inherits Window {
     preferred-width: 400px;
     preferred-height: 400px;
 
     min-width: board.width;
     min-height: board.height;
+
+    in property <CurrentWindow> window-state: CurrentWindow.Start;
 
     // Board property links
     callback clicked <=> board.square-clicked;
@@ -14,10 +21,12 @@ export component GameWindow inherits Window {
 
     property <length> board-length: self.height * 85%;
     board := Board {
-        square-color: #00FF00;
-        back-color: #FFFF00;
+        square-color: #352f3b;
+        back-color: #e3e0a0;
+        marked-color: #ffff41;
         board-length: parent.board-length;
         center: {x: parent.width / 2, y: parent.height / 2};
+        visible: window-state == CurrentWindow.Game;
     }
 }
 

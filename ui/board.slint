@@ -5,7 +5,7 @@ export struct BoardSquare {
 }
 
 export component Board {
-    in property <color> square-color: #121212;
+    in property <color> square-color: #0A1A1A;
     in property <color> back-color: #FFFFFF;
     in property <color> marked-color: #e3dc5d;
     in property <color> border-color: #000000;
@@ -67,7 +67,9 @@ export component Board {
 
         TouchArea {
             clicked => {
-                square-clicked(index);
+                if (self.visible) {
+                    square-clicked(index);
+                }
             }
         }
     }
