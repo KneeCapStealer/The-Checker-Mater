@@ -1,5 +1,5 @@
 use slint::{Model, Weak};
-use std::rc::Rc;
+use std::{ops::DerefMut, rc::Rc};
 
 slint::include_modules!();
 
