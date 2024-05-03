@@ -1,3 +1,33 @@
+import { VerticalBox, HorizontalBox, Button } from "std-widgets.slint";
+
 export component StartWindow {
-    
+    callback host-game <=> host.clicked;
+    callback join-game <=> join.clicked;
+    callback exit <=> exit.clicked;
+    VerticalBox {
+        Text {
+            text: "The Checker Mater";
+            color: black;
+            font-size: 32px;
+            font-weight: 3;
+        }
+        host := Button {
+            text: "Host Game";
+            width: 300px;
+            height: 80px;
+            enabled: parent.visible;
+        }
+        join := Button {
+            text: "Join Game";
+            width: 300px;
+            height: 80px;
+            enabled: parent.visible;
+        }
+        exit := Button {
+            text: "Exit";
+            width: 300px;
+            height: 80px;
+            enabled: parent.visible;
+        }
+    }
 }

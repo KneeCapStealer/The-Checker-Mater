@@ -1,5 +1,5 @@
 use slint::{Model, Weak};
-use std::{ops::DerefMut, rc::Rc};
+use std::rc::Rc;
 
 slint::include_modules!();
 
@@ -97,14 +97,12 @@ impl Board {
         let squares = Rc::new(slint::VecModel::from(squares));
         game.set_squares(squares.clone().into());
 
-        let mut board = Board {
+        Board {
             game: game.as_weak(),
             pieces,
             squares,
             ..Default::default()
-        };
-        
-        board
+        }
     }
 
     /// Returns the starting setup of a checkers board based off `player_color`
@@ -165,13 +163,12 @@ impl Board {
         }
 
         self.pieces.set_row_data(mov.end, start_data);
-        self.pieces.set_row_data(mov.start, PieceData::const_default());
+        self.pieces
+            .set_row_data(mov.start, PieceData::const_default());
 
         if let Some(captured) = mov.captured {
-            self.pieces.set_row_data(
-                captured,
-                PieceData::const_default(),
-            )
+            self.pieces
+                .set_row_data(captured, PieceData::const_default())
         }
     }
 
@@ -199,14 +196,24 @@ impl Board {
 
     /// Returns true if the `index` corresponds to a player piece on the board
     pub fn piece_is_player(&self, index: usize) -> bool {
-        assert!(index < self.pieces.row_count(), "index ({}) is greater than row_count ({})", index, self.pieces.row_count());
+        assert!(
+            index < self.pieces.row_count(),
+            "index ({}) is greater than row_count ({})",
+            index,
+            self.pieces.row_count()
+        );
         let piece = self.pieces.row_data(index).unwrap();
         piece.color == self.player_color && piece.is_active
     }
 
     /// Returns true if the `index` corresponds to a non-player piece on the board
     pub fn piece_is_enemy(&self, index: usize) -> bool {
-        assert!(index < self.pieces.row_count(), "index ({}) is greater than row_count ({})", index, self.pieces.row_count());
+        assert!(
+            index < self.pieces.row_count(),
+            "index ({}) is greater than row_count ({})",
+            index,
+            self.pieces.row_count()
+        );
         let piece = self.pieces.row_data(index).unwrap();
         piece.color != self.player_color && piece.is_active
     }
@@ -292,11 +299,14 @@ impl Board {
             // If we are taking a piece, since the next tile is empty
             // We return the available move to take the piece
             if is_taking {
-                return Some((vec![Move {
-                    start,
-                    end: next as usize,
-                    captured: Some(index),
-                }], true));
+                return Some((
+                    vec![Move {
+                        start,
+                        end: next as usize,
+                        captured: Some(index),
+                    }],
+                    true,
+                ));
             }
 
             // If we aren't taking a piece, and this tile is piece is empty
@@ -322,9 +332,9 @@ impl Board {
 
             if !is_taking {
                 moves.push(Move {
-                start,
-                end: next as usize,
-                captured: None,
+                    start,
+                    end: next as usize,
+                    captured: None,
                 });
             }
 
@@ -373,21 +383,19 @@ impl Board {
                 }
             }
         }
-        
+
         match moves {
             Some(mut moves) => {
                 if !is_taking {
                     return Some((moves, is_taking));
                 }
                 // Remove all non-capturing moves
-                moves = moves.iter().filter_map(|mov| 
-                    match mov.captured {
-                        Some(_) => Some(*mov),
-                        None => None,
-                    }
-                ).collect();
+                moves = moves
+                    .iter()
+                    .filter_map(|mov| mov.captured.map(|_| *mov))
+                    .collect();
                 Some((moves, is_taking))
-            },
+            }
             None => None,
         }
     }
@@ -414,13 +422,13 @@ impl Board {
                     return Some(moves);
                 }
 
-                Some(moves.iter().filter_map(|mov| 
-                    match mov.captured {
-                        Some(_) => Some(*mov),
-                        None => None,
-                    }
-                ).collect())
-            },
+                Some(
+                    moves
+                        .iter()
+                        .filter_map(|mov| mov.captured.map(|_| *mov))
+                        .collect(),
+                )
+            }
             None => None,
         }
     }

@@ -1,6 +1,7 @@
 import { Board } from "board.slint";
+import { StartWindow } from "start_window.slint";
 
-export enum CurrentWindow {
+export enum WindowType {
     Start,
     Game,
 }
@@ -12,7 +13,14 @@ export component GameWindow inherits Window {
     min-width: board.width;
     min-height: board.height;
 
-    in property <CurrentWindow> window-state: CurrentWindow.Start;
+    in property <WindowType> window-state: WindowType.Start;
+
+    callback exit <=> start-window.exit;
+    callback join-game <=> start-window.join-game;
+    callback host-game <=> start-window.host-game;
+    start_window := StartWindow {
+        visible: window-state == WindowType.Start;
+    }
 
     // Board property links
     callback clicked <=> board.square-clicked;
@@ -25,8 +33,7 @@ export component GameWindow inherits Window {
         back-color: #e3e0a0;
         marked-color: #ffff41;
         board-length: parent.board-length;
-        center: {x: parent.width / 2, y: parent.height / 2};
-        visible: window-state == CurrentWindow.Game;
+        center: { x: parent.width / 2, y: parent.height / 2 };
+        visible: window-state == WindowType.Game;
     }
 }
-
