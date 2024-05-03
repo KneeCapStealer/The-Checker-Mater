@@ -24,6 +24,8 @@ pub trait ToByte {
 pub enum PacketError {
     #[error("Invalid packet length. Expected {expected} bytes, got {got} bytes")]
     InvalidLength { expected: usize, got: usize },
+    #[error("Invalid packet type.")]
+    InavlidType,
     #[error("Got empty packet")]
     Empty,
     #[error("Data error. Reason: {reason:?}")]

@@ -3704,6 +3704,7 @@ dependencies = [
  "anyhow",
  "as-any",
  "hex",
+ "lazy_static",
  "local-ip-address",
  "rand",
  "ron",

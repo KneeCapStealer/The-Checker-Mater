@@ -1,11 +1,53 @@
 pub mod communicate;
+pub mod net_loop;
+pub mod queue;
 
 use anyhow::anyhow;
 
-use super::{
-    net_loop::NetworkSendable,
-    net_utils::{FromPacket, PacketError, ToByte, ToPacket},
-};
+use super::net_utils::{FromPacket, PacketError, ToByte, ToPacket};
+
+#[derive(Clone, Debug)]
+pub enum P2pPacket {
+    Request(P2pRequest),
+    Response(P2pResponse),
+}
+impl P2pPacket {
+    pub fn is_request(&self) -> bool {
+        match self {
+            Self::Request(_) => true,
+            _ => false,
+        }
+    }
+    pub fn is_response(&self) -> bool {
+        match self {
+            Self::Response(_) => true,
+            _ => false,
+        }
+    }
+}
+impl ToPacket for P2pPacket {
+    fn to_packet(&self) -> Vec<u8> {
+        match self {
+            Self::Request(req) => req.to_packet(),
+            Self::Response(resp) => resp.to_packet(),
+        }
+    }
+}
+impl FromPacket for P2pPacket {
+    fn from_packet(packet: Vec<u8>) -> anyhow::Result<Self> {
+        match packet[0] {
+            0 => match P2pRequest::from_packet(packet) {
+                Ok(req) => Ok(Self::Request(req)),
+                Err(e) => Err(e),
+            },
+            1 => match P2pResponse::from_packet(packet) {
+                Ok(resp) => Ok(Self::Response(resp)),
+                Err(e) => Err(e),
+            },
+            _ => Err(PacketError::InavlidType.into()),
+        }
+    }
+}
 
 /// A request for P2P (Peer to Peer) connection. This moves mostly from client to host, but the
 /// host will send requests to the client, when it makes an update to the board.
@@ -14,19 +56,27 @@ pub struct P2pRequest {
     /// The sessions ID set by the host. Is set to 0 if it is the first time the client is talking
     /// with the host.
     pub session_id: u16,
+    /// This specific transactions ID
+    pub transaction_id: u16,
     /// The main packet of the request.
     pub packet: P2pRequestPacket,
 }
 impl P2pRequest {
     /// Create a new `P2pRequest` from the sessions ID and the packet.
-    pub fn new(session_id: u16, packet: P2pRequestPacket) -> Self {
-        Self { session_id, packet }
+    pub fn new(session_id: u16, transaction_id: u16, packet: P2pRequestPacket) -> Self {
+        Self {
+            session_id,
+            transaction_id,
+            packet,
+        }
     }
 }
 impl ToPacket for P2pRequest {
     fn to_packet(&self) -> Vec<u8> {
         let mut bytes = vec![];
+        bytes.append(&mut 0u8.to_be_bytes().to_vec());
         bytes.append(&mut self.session_id.to_be_bytes().to_vec());
+        bytes.append(&mut self.transaction_id.to_be_bytes().to_vec());
         bytes.append(&mut self.packet.to_packet());
 
         bytes
@@ -34,16 +84,23 @@ impl ToPacket for P2pRequest {
 }
 impl FromPacket for P2pRequest {
     fn from_packet(packet: Vec<u8>) -> anyhow::Result<Self> {
-        if packet.len() < 3 {
-            return Err(PacketError::invalid_length(3, packet.len()).into());
+        if packet.len() < 6 {
+            return Err(PacketError::invalid_length(6, packet.len()).into());
         }
-        let session_id = u16::from_be_bytes(packet[0..2].try_into().unwrap());
-        let packet = P2pRequestPacket::from_packet(packet[2..].to_vec())?;
+        if packet[0] != 0 {
+            return Err(PacketError::InavlidType.into());
+        }
+        let session_id = u16::from_be_bytes(packet[1..3].try_into().unwrap());
+        let transaction_id = u16::from_be_bytes(packet[3..5].try_into().unwrap());
+        let packet = P2pRequestPacket::from_packet(packet[5..].to_vec())?;
 
-        Ok(Self { session_id, packet })
+        Ok(Self {
+            session_id,
+            transaction_id,
+            packet,
+        })
     }
 }
-impl NetworkSendable for P2pRequest {}
 
 /// The different types of packets you can send as a request to the other peer.
 #[derive(Clone, Debug)]
@@ -181,36 +238,52 @@ impl ToByte for P2pRequestPacket {
 pub struct P2pResponse {
     /// The sessions ID set randomly by the host.
     pub session_id: u16,
+    /// This specific transactions ID
+    pub transaction_id: u16,
     /// The main packet of the response.
     pub packet: P2pResponsePacket,
 }
 impl P2pResponse {
     /// Create a new `P2pResponse` from the sessions ID and the packet.
-    pub fn new(session_id: u16, packet: P2pResponsePacket) -> Self {
-        Self { session_id, packet }
+    pub fn new(session_id: u16, transaction_id: u16, packet: P2pResponsePacket) -> Self {
+        Self {
+            session_id,
+            transaction_id,
+            packet,
+        }
     }
 }
 impl ToPacket for P2pResponse {
     fn to_packet(&self) -> Vec<u8> {
         let mut bytes = vec![];
+        bytes.append(&mut 1u8.to_be_bytes().to_vec());
         bytes.append(&mut self.session_id.to_be_bytes().to_vec());
+        bytes.append(&mut self.transaction_id.to_be_bytes().to_vec());
         bytes.append(&mut self.packet.to_packet());
         bytes
     }
 }
 impl FromPacket for P2pResponse {
     fn from_packet(packet: Vec<u8>) -> anyhow::Result<Self> {
-        if packet.len() < 3 {
-            return Err(PacketError::invalid_length(3, packet.len()).into());
+        if packet.len() < 6 {
+            return Err(PacketError::invalid_length(6, packet.len()).into());
         }
 
-        let session_id = u16::from_be_bytes(packet[0..2].try_into().unwrap());
-        let packet = P2pResponsePacket::from_packet(packet[2..].to_vec())?;
+        if packet[0] != 1 {
+            return Err(PacketError::InavlidType.into());
+        }
 
-        Ok(Self { session_id, packet })
+        let session_id = u16::from_be_bytes(packet[1..3].try_into().unwrap());
+        let transaction_id = u16::from_be_bytes(packet[3..5].try_into().unwrap());
+        let packet = P2pResponsePacket::from_packet(packet[5..].to_vec())?;
+
+        Ok(Self {
+            session_id,
+            transaction_id,
+            packet,
+        })
     }
 }
-impl NetworkSendable for P2pResponse {}
 
 /// The different types of packets you can send as a response to the other peer.
 #[derive(Clone, Debug, PartialEq)]

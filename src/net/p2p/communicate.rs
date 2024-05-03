@@ -1,9 +1,8 @@
 use std::{net::SocketAddr, sync::Arc};
 
-use crate::net::{
-    net_loop::NetworkSendable,
-    net_utils::{FromPacket, NetworkError, ToPacket},
-};
+use crate::net::net_utils::{FromPacket, NetworkError, ToPacket};
+
+use super::P2pPacket;
 
 /// Send a packet to the other machine over a P2P UDP protocol.
 /// # Example:
@@ -35,41 +34,15 @@ pub async fn send_p2p_packet<T: ToPacket>(
 ///
 /// let (response, addr) = recieve_p2p_packet::<P2pResponse>(socket)?;
 /// ```
-pub async fn recieve_p2p_packet<T: FromPacket>(
+pub async fn recieve_p2p_packet(
     socket: &Arc<tokio::net::UdpSocket>,
-) -> anyhow::Result<(T, SocketAddr)> {
+) -> anyhow::Result<(P2pPacket, SocketAddr)> {
     let mut buffer = vec![0; 1024];
     match socket.recv_from(&mut buffer).await {
         Ok((len, addr)) => {
             buffer.resize(len, 0);
-            let response = T::from_packet(buffer.to_vec())?;
+            let response = P2pPacket::from_packet(buffer.to_vec())?;
             Ok((response, addr))
-        }
-        Err(e) => {
-            return Err(NetworkError::recieve_error(&e.to_string()).into());
-        }
-    }
-}
-
-pub async fn send_packet_as_trait(
-    socket: &tokio::net::UdpSocket,
-    data: Box<dyn NetworkSendable>,
-    to: SocketAddr,
-) -> anyhow::Result<usize> {
-    match socket.send_to(data.to_packet().as_slice(), to).await {
-        Ok(bytes) => Ok(bytes),
-        Err(e) => Err(NetworkError::send_error(&e.to_string()).into()),
-    }
-}
-
-pub async fn recieve_packet_as_bytes(
-    socket: &tokio::net::UdpSocket,
-) -> anyhow::Result<(Vec<u8>, SocketAddr)> {
-    let mut buffer = vec![0; 1024];
-    match socket.recv_from(&mut buffer).await {
-        Ok((len, addr)) => {
-            buffer.resize(len, 0);
-            Ok((buffer, addr))
         }
         Err(e) => {
             return Err(NetworkError::recieve_error(&e.to_string()).into());
