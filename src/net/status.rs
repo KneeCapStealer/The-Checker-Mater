@@ -20,17 +20,15 @@ impl ConnectionStatus {
         Self::Reconnecting { tries: 0 }
     }
     pub fn is_connected(&self) -> bool {
-        if let Self::Connected { ping: _ } = self {
-            true
-        } else {
-            false
+        match self {
+            Self::Connected { ping: _ } => true,
+            _ => false,
         }
     }
     pub fn is_reconnecting(&self) -> bool {
-        if let Self::Reconnecting { tries: _ } = self {
-            true
-        } else {
-            false
+        match self {
+            Self::Reconnecting { tries: _ } => true,
+            _ => false,
         }
     }
     pub fn can_send(&self) -> bool {

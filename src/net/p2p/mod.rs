@@ -4,7 +4,10 @@ pub mod queue;
 
 use anyhow::anyhow;
 
-use super::net_utils::{FromPacket, PacketError, ToByte, ToPacket};
+use super::{
+    interface::GameAction,
+    net_utils::{FromPacket, PacketError, ToByte, ToPacket},
+};
 
 #[derive(Clone, Debug)]
 pub enum P2pPacket {
@@ -119,14 +122,23 @@ pub enum P2pRequestPacket {
     },
     /// Ask the host for a copy of the correct board, so the client can resync theirs.
     Resync,
-    /// Tell the other peer that you have moved your piece. This will automatically be a success
-    /// if done by the host, but a peer must wait for the hosts reply, to check if the move was
-    /// valid. If not valid, request a resync.
-    MovePiece { from: u8, to: u8 },
-    /// Tell the other peer that you will end your turn. This will automatically be a success
-    /// if done by the host, but a peer must wait for the hosts reply, to check if it is able to
-    /// end their turn. If not valid, request a resync.
-    EndTurn,
+    /// Perform a game action
+    GameAction { action: GameAction },
+}
+impl P2pRequestPacket {
+    /// Request to connect to the host. `join_code` is the HEX encoded IP and port of the host,
+    /// which is the same as the join code if working over LAN. 'username' is the username the
+    /// client wishes to use.
+    pub fn connect(join_code: &str, username: &str) -> Self {
+        Self::Connect {
+            join_code: join_code.to_owned(),
+            username: username.to_owned(),
+        }
+    }
+    /// Perform a game action
+    pub fn game_action(action: GameAction) -> Self {
+        Self::GameAction { action }
+    }
 }
 impl ToPacket for P2pRequestPacket {
     fn to_packet(&self) -> Vec<u8> {
@@ -147,14 +159,10 @@ impl ToPacket for P2pRequestPacket {
             Self::Resync => {
                 bytes.append(&mut self.to_u8().to_be_bytes().to_vec()); // Packet type code
             }
-            Self::MovePiece { from, to } => {
+            Self::GameAction { action } => {
                 bytes.append(&mut self.to_u8().to_be_bytes().to_vec()); // Packet type code
 
-                bytes.append(&mut from.to_be_bytes().to_vec());
-                bytes.append(&mut to.to_be_bytes().to_vec());
-            }
-            Self::EndTurn => {
-                bytes.append(&mut self.to_u8().to_be_bytes().to_vec());
+                bytes.append(&mut action.to_packet());
             }
         }
         bytes
@@ -199,19 +207,15 @@ impl FromPacket for P2pRequestPacket {
             }
             // Resync
             3 => Ok(Self::Resync),
-            // MovePiece
+            // Game Action
             4 => {
-                if packet.len() != 3 {
-                    return Err(PacketError::invalid_length(3, packet.len()).into());
+                if packet.len() < 2 {
+                    return Err(PacketError::invalid_length(2, packet.len()).into());
                 }
+                let action = GameAction::from_packet(packet[1..].to_vec()).unwrap();
 
-                let from = packet[1];
-                let to = packet[2];
-
-                Ok(Self::MovePiece { from, to })
+                Ok(Self::GameAction { action })
             }
-            // EndTurn
-            5 => Ok(Self::EndTurn),
             _ => Err(
                 PacketError::data_error(&format!("Not valid packet type: {}", packet[0])).into(),
             ),
@@ -227,8 +231,7 @@ impl ToByte for P2pRequestPacket {
                 username: _,
             } => 2,
             Self::Resync => 3,
-            Self::MovePiece { from: _, to: _ } => 4,
-            Self::EndTurn => 5,
+            Self::GameAction { action: _ } => 4,
         }
     }
 }
@@ -441,6 +444,58 @@ impl ToByte for P2pResponsePacket {
                 host_username: _,
             } => 2,
             Self::Resync { board: _ } => 3,
+        }
+    }
+}
+impl ToPacket for GameAction {
+    fn to_packet(&self) -> Vec<u8> {
+        let mut bytes = vec![];
+        match self {
+            Self::MovePiece { to, from } => {
+                bytes.append(&mut self.to_u8().to_be_bytes().to_vec()); // Packet type code
+
+                bytes.append(&mut (*to as u8).to_be_bytes().to_vec());
+                bytes.append(&mut (*from as u8).to_be_bytes().to_vec());
+            }
+            Self::Surrender => {
+                bytes.append(&mut self.to_u8().to_be_bytes().to_vec()); // Packet type code
+            }
+        }
+        bytes
+    }
+}
+impl FromPacket for GameAction {
+    fn from_packet(packet: Vec<u8>) -> anyhow::Result<Self> {
+        if packet.len() == 0 {
+            return Err(PacketError::invalid_length(1, 0).into());
+        }
+        match packet[0] {
+            0 => {
+                if packet.len() != 3 {
+                    return Err(PacketError::invalid_length(3, packet.len()).into());
+                }
+                let to = packet[1] as usize;
+                let from = packet[2] as usize;
+
+                Ok(Self::move_piece(to, from))
+            }
+            1 => {
+                if packet.len() != 1 {
+                    return Err(PacketError::invalid_length(1, packet.len()).into());
+                }
+                Ok(Self::Surrender)
+            }
+            _ => Err(
+                PacketError::data_error(&format!("Not valid packet type: {}", packet[0])).into(),
+            ),
+        }
+    }
+}
+impl ToByte for GameAction {
+    fn to_u8(&self) -> u8 {
+        match self {
+            Self::MovePiece { to: _, from: _ } => 0,
+            Self::Surrender => 1,
         }
     }
 }

@@ -19,7 +19,7 @@ use crate::net::{
 
 use super::queue::{new_transaction_id, push_outgoing_queue, wait_for_response};
 
-const REQUEST_TIMEOUT_MS: u128 = 500;
+pub const REQUEST_TIMEOUT_MS: u128 = 500;
 const DISCONNECT_TIME_MS: u128 = 5_000;
 const RECONNECT_TRIES: u32 = 10;
 
@@ -30,12 +30,38 @@ const RECONNECT_TRIES: u32 = 10;
 ///         - Send the next item in the Outgoing queue to the host.
 pub fn host_network_loop(socket: tokio::net::UdpSocket) {
     let socket = Arc::new(socket);
+    // Handle outgoing queue
+    tokio::spawn({
+        let new_sock = socket.clone();
+        async move {
+            loop {
+                if get_other_addr().is_none() && get_outgoing_queue_len() >= 1 {
+                    println!("Smth wrong!");
+                }
+                let client_addr = match get_other_addr() {
+                    Some(addr) => addr,
+                    None => continue,
+                };
+                if let Some((data, id)) = queue::pop_outgoing_queue() {
+                    println!("Sending Packet with ID {}... ({:?})", id, data);
+                    send_p2p_packet(&new_sock, data, client_addr).await.unwrap();
+                }
+            }
+        }
+    });
     // Handle incoming responses
     tokio::spawn({
         let new_sock = socket.clone();
         async move {
             let mut time_since_ping = Instant::now();
             loop {
+                if time_since_ping.elapsed().as_millis() >= DISCONNECT_TIME_MS
+                    && get_other_addr().is_some()
+                {
+                    println!("Client at {:?} disconnected!", get_other_addr().unwrap());
+                    set_other_addr(None);
+                    set_session_id(CONNECT_SESSION_ID);
+                }
                 // Get incoming
                 let timeout_result = tokio::time::timeout(
                     Duration::from_millis(REQUEST_TIMEOUT_MS as u64),
@@ -43,15 +69,13 @@ pub fn host_network_loop(socket: tokio::net::UdpSocket) {
                 )
                 .await;
 
-                if let Err(_e) = &timeout_result {
+                if let Err(_) = &timeout_result {
                     continue;
                 }
                 let (incoming_packet, addr) = timeout_result.unwrap().unwrap();
-                if addr != get_other_addr().unwrap_or(addr) {
-                    continue;
-                }
                 println!("GOT PACKET:");
                 dbg!(&incoming_packet);
+
                 match incoming_packet {
                     P2pPacket::Request(req) => {
                         let packet = match req.packet {
@@ -82,7 +106,7 @@ pub fn host_network_loop(socket: tokio::net::UdpSocket) {
                                     println!("{} at {:?} Joined the game!", username, addr);
 
                                     set_session_id(rand::random::<u16>());
-                                    set_connection_status(ConnectionStatus::Connected { ping: 0 });
+                                    set_connection_status(ConnectionStatus::connected());
                                     set_other_addr(Some(addr));
 
                                     P2pResponsePacket::Connect {
@@ -108,33 +132,6 @@ pub fn host_network_loop(socket: tokio::net::UdpSocket) {
                             .await;
                     }
                 }
-                if time_since_ping.elapsed().as_millis() >= DISCONNECT_TIME_MS
-                    && get_other_addr().is_some()
-                {
-                    println!("Client at {:?} disconnected!", get_other_addr().unwrap());
-                    set_other_addr(None);
-                    set_session_id(CONNECT_SESSION_ID);
-                }
-            }
-        }
-    });
-
-    // Handle outgoing queue
-    tokio::spawn({
-        let new_sock = socket.clone();
-        async move {
-            loop {
-                if !get_connection_status().can_send() {
-                    continue;
-                }
-                let client_addr = match get_other_addr() {
-                    Some(addr) => addr,
-                    None => continue,
-                };
-                if let Some((data, _, id)) = queue::pop_outgoing_queue() {
-                    println!("Sending Packet with ID {}...", id);
-                    send_p2p_packet(&new_sock, data, client_addr).await.unwrap();
-                }
             }
         }
     });
@@ -158,11 +155,13 @@ pub fn client_network_loop(socket: tokio::net::UdpSocket, pings: usize) {
             loop {
                 interval.tick().await;
 
-                if !get_connection_status().is_connected()
-                    && !get_connection_status().is_reconnecting()
-                {
+                if !get_connection_status().is_connected() {
                     continue;
                 }
+                if get_other_addr().is_none() {
+                    continue;
+                }
+
                 let time = Instant::now();
 
                 let session_id = get_session_id();
@@ -170,7 +169,7 @@ pub fn client_network_loop(socket: tokio::net::UdpSocket, pings: usize) {
                 let ping_id = new_transaction_id().await;
                 let ping = P2pRequest::new(session_id, ping_id, P2pRequestPacket::Ping);
 
-                push_outgoing_queue(P2pPacket::Request(ping)).await;
+                push_outgoing_queue(P2pPacket::Request(ping), None).await;
 
                 match tokio::time::timeout(
                     Duration::from_millis(REQUEST_TIMEOUT_MS as u64),
@@ -196,6 +195,7 @@ pub fn client_network_loop(socket: tokio::net::UdpSocket, pings: usize) {
                         if let ConnectionStatus::Reconnecting { tries } = status {
                             if *tries >= RECONNECT_TRIES as u8 {
                                 *status = ConnectionStatus::Disconnected;
+                                set_other_addr(None);
                                 println!("Disconnected from host");
                             } else {
                                 *tries += 1;
@@ -213,17 +213,15 @@ pub fn client_network_loop(socket: tokio::net::UdpSocket, pings: usize) {
         let new_sock = socket.clone();
         async move {
             loop {
-                if !get_connection_status().can_send() {
-                    println!("Hey :J");
-                    continue;
-                }
                 let client_addr = match get_other_addr() {
                     Some(addr) => addr,
                     None => continue,
                 };
-                if let Some((data, _transaction_id)) = queue::pop_outgoing_queue() {
-                    println!("Sending Packet...");
+                if let Some((data, id)) = queue::pop_outgoing_queue() {
+                    println!("Sending Packet with ID {}... ({:?})", id, data);
                     send_p2p_packet(&new_sock, data, client_addr).await.unwrap();
+                } else {
+                    println!("Queue empty");
                 }
             }
         }
@@ -246,15 +244,20 @@ pub fn client_network_loop(socket: tokio::net::UdpSocket, pings: usize) {
                 if addr != get_other_addr().unwrap() {
                     continue;
                 }
+                println!("GOT PACKET:");
+                dbg!(&incoming_packet);
                 match incoming_packet {
                     P2pPacket::Request(req) => {
                         let packet = match req.packet {
-                            P2pRequestPacket::EndTurn => P2pResponsePacket::Pong,
+                            P2pRequestPacket::Ping => P2pResponsePacket::Pong,
                             _ => P2pResponsePacket::error(P2pError::WrongDirection),
                         };
+                        println!("Sending following packet:");
 
                         let response = P2pResponse::new(req.session_id, req.transaction_id, packet);
+                        dbg!(&response);
                         send_p2p_packet(&new_sock, response, addr).await.unwrap();
+                        println!("Sent package");
                     }
                     P2pPacket::Response(resp) => {
                         if !queue::check_transaction_id(resp.transaction_id).await {
