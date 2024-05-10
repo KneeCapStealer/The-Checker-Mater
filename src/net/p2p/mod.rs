@@ -310,6 +310,8 @@ pub enum P2pResponsePacket {
         /// The hosts version of the game board, which the client will copy.
         board: Vec<Tile>,
     },
+    /// A simple acknowledge.
+    Acknowledge,
 }
 impl P2pResponsePacket {
     /// The packet for if an error has occured.
@@ -359,6 +361,9 @@ impl ToPacket for P2pResponsePacket {
                         bytes.append(&mut 0u8.to_be_bytes().to_vec());
                     }
                 }
+            }
+            Self::Acknowledge => {
+                bytes.append(&mut self.to_u8().to_be_bytes().to_vec());
             }
         }
 
@@ -428,6 +433,8 @@ impl FromPacket for P2pResponsePacket {
 
                 Ok(Self::Resync { board })
             }
+            // Ok
+            4 => Ok(Self::Acknowledge),
             _ => Err(
                 PacketError::data_error(&format!("Not valid packet type: {}", packet[0])).into(),
             ),
@@ -444,6 +451,7 @@ impl ToByte for P2pResponsePacket {
                 host_username: _,
             } => 2,
             Self::Resync { board: _ } => 3,
+            Self::Acknowledge => 4,
         }
     }
 }

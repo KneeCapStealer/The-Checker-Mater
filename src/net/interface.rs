@@ -4,15 +4,14 @@ use std::{
     time::Duration,
 };
 
+use futures::executor;
 use tokio::sync::Mutex;
 
 use crate::net::{
     net_utils::hex_decode_ip,
     p2p::{
-        net_loop::{client_network_loop, REQUEST_TIMEOUT_MS},
-        queue::{
-            get_outgoing_queue_len, new_transaction_id, push_outgoing_queue, wait_for_response,
-        },
+        net_loop::client_network_loop,
+        queue::{new_transaction_id, push_outgoing_queue, wait_for_response},
         P2pPacket, P2pRequest, P2pRequestPacket,
     },
     status::{
@@ -22,7 +21,9 @@ use crate::net::{
 
 use super::{
     net_utils::{get_available_port, get_local_ip, hex_encode_ip},
-    p2p::{net_loop::host_network_loop, P2pResponse, P2pResponsePacket},
+    p2p::{
+        net_loop::host_network_loop, queue::pop_incoming_gameaction, P2pResponse, P2pResponsePacket,
+    },
     status::set_join_code,
 };
 
@@ -52,15 +53,15 @@ pub async fn start_lan_client(join_code: &str) {
         .await
         .unwrap();
 
-    set_join_code(join_code);
+    set_join_code(join_code).await;
     let host_addr = hex_decode_ip(join_code).unwrap();
-    set_other_addr(Some(host_addr));
+    set_other_addr(Some(host_addr)).await;
 
     // Start client network loop, with 10 pings pr. second
     client_network_loop(socket, 10);
 
     let join_request = P2pRequest::new(
-        get_session_id(),
+        get_session_id().await,
         new_transaction_id().await,
         P2pRequestPacket::Connect {
             join_code: join_code.to_owned(),
@@ -69,29 +70,25 @@ pub async fn start_lan_client(join_code: &str) {
     );
     println!("Asking to join Host at {:?}", host_addr);
 
-    set_connection_status(ConnectionStatus::PendingConnection);
+    set_connection_status(ConnectionStatus::PendingConnection).await;
 
-    let resp = loop {
-        let id = push_outgoing_queue(P2pPacket::Request(join_request.clone()), None).await;
-        println!("QUEUE LEN: {}", get_outgoing_queue_len());
+    let id = push_outgoing_queue(P2pPacket::Request(join_request.clone()), None).await;
 
-        if let Ok(resp) = tokio::time::timeout(
-            Duration::from_millis(REQUEST_TIMEOUT_MS as u64),
-            wait_for_response(id),
-        )
-        .await
-        {
-            break resp;
-        }
-    };
-
-    if let P2pPacket::Response(resp) = resp {
-        println!("Got response");
-
-        set_connection_status(ConnectionStatus::connected());
-        set_session_id(resp.session_id);
-
+    if let Ok(resp) = tokio::time::timeout(Duration::from_millis(1000), wait_for_response(id)).await
+    {
+        println!("GOT ANSWER!!!!");
         dbg!(&resp);
+        if let P2pPacket::Response(resp) = resp {
+            println!("Got response");
+
+            println!("Setting connection to Connected!");
+            set_connection_status(ConnectionStatus::connected()).await;
+            println!("Connection sat to connected!!");
+
+            set_session_id(resp.session_id).await;
+
+            dbg!(&resp);
+        }
     }
 }
 
@@ -106,7 +103,7 @@ pub async fn start_lan_host() -> String {
     let local_ip = get_local_ip().unwrap();
 
     let encoded_ip = hex_encode_ip(SocketAddr::new(IpAddr::V4(local_ip), port)).unwrap();
-    set_join_code(&encoded_ip);
+    set_join_code(&encoded_ip).await;
 
     host_network_loop(socket);
 
@@ -118,13 +115,35 @@ pub fn get_other_username() -> String {
     todo!()
 }
 
-/// Get the next game action from other computer.
-pub fn get_next_game_action() -> Option<GameAction> {
-    todo!()
+/// Get the next game action from the other user.
+pub async fn get_next_game_action() -> Option<GameAction> {
+    pop_incoming_gameaction().await
 }
 
-/// Non blocking
-pub async fn send_game_action<F>(action: GameAction, mut on_response: F)
+/// Send a game action to the other user.
+/// The function is async, but only because it needs to be, to push the game action onto the
+/// outgoing queue.
+/// It will not wait until it gets a response.
+///
+/// ## Params:
+/// * `action` - The game action you want to send, is of type `GameAction`
+/// * `on_response` - The closure that will be called when the `GameAction` request gets a
+/// response.
+///
+/// ## Examples:
+/// ```
+/// let action = GameAction::Surrender;
+///
+/// let callback = |res: anyhow::Result<()>| {
+///     match res {
+///         Ok(_) => println!("Hell yea!!"),
+///         Err(_) => println!("Hell no!!"),
+///     };
+/// }
+///
+/// send_game_action(action, callback).await;
+/// ```
+pub fn send_game_action<F>(action: GameAction, mut on_response: F)
 where
     F: FnMut(anyhow::Result<()>) + Send + Sync + 'static,
 {
@@ -137,9 +156,12 @@ where
     }));
 
     let request = P2pRequest {
-        session_id: get_session_id(),
-        transaction_id: new_transaction_id().await,
+        session_id: executor::block_on(get_session_id()),
+        transaction_id: executor::block_on(new_transaction_id()),
         packet: P2pRequestPacket::game_action(action),
     };
-    push_outgoing_queue(P2pPacket::Request(request), Some(closure)).await;
+    executor::block_on(push_outgoing_queue(
+        P2pPacket::Request(request),
+        Some(closure),
+    ));
 }

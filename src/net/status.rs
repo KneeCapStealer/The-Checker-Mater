@@ -1,4 +1,7 @@
-use std::net::SocketAddr;
+use std::{net::SocketAddr, sync::Arc};
+
+use lazy_static::lazy_static;
+use tokio::sync::Mutex;
 
 pub const CONNECT_SESSION_ID: u16 = 0x15f4;
 
@@ -47,63 +50,61 @@ pub struct ConnectionData {
     session_id: u16,
 }
 
-static mut CONNECTION_DATA: ConnectionData = ConnectionData {
-    status: ConnectionStatus::Disconnected,
-    other_addr: None,
-    join_code: None,
-    session_id: CONNECT_SESSION_ID,
-};
-
-pub fn get_other_addr() -> Option<SocketAddr> {
-    unsafe { CONNECTION_DATA.other_addr }
+lazy_static! {
+    static ref CONNECTION_DATA: Arc<Mutex<ConnectionData>> = Arc::new(Mutex::new(ConnectionData {
+        status: ConnectionStatus::Disconnected,
+        other_addr: None,
+        join_code: None,
+        session_id: CONNECT_SESSION_ID,
+    }));
 }
 
-pub fn set_other_addr(addr: Option<SocketAddr>) {
-    unsafe { CONNECTION_DATA.other_addr = addr }
+pub async fn get_other_addr() -> Option<SocketAddr> {
+    CONNECTION_DATA.lock().await.other_addr.clone()
 }
 
-pub fn get_connection_status() -> ConnectionStatus {
-    unsafe { CONNECTION_DATA.status }
+pub async fn set_other_addr(addr: Option<SocketAddr>) {
+    CONNECTION_DATA.lock().await.other_addr = addr.clone()
 }
 
-pub fn get_connection_status_mut() -> &'static mut ConnectionStatus {
-    unsafe { &mut CONNECTION_DATA.status }
+pub async fn get_connection_status() -> ConnectionStatus {
+    CONNECTION_DATA.lock().await.status.clone()
 }
 
-pub fn set_connection_status(status: ConnectionStatus) {
-    unsafe { CONNECTION_DATA.status = status }
+pub async fn set_connection_status(status: ConnectionStatus) {
+    CONNECTION_DATA.lock().await.status = status
 }
 
-pub fn get_connection_ping() -> Option<u128> {
-    unsafe {
-        if let ConnectionStatus::Connected { ping } = CONNECTION_DATA.status {
-            Some(ping)
-        } else {
-            None
-        }
+pub async fn get_connection_ping() -> Option<u128> {
+    match CONNECTION_DATA.lock().await.status {
+        ConnectionStatus::Connected { ping } => Some(ping),
+        _ => None,
     }
 }
 
-pub fn set_connection_ping(new_ping: u128) {
-    unsafe {
-        if let ConnectionStatus::Connected { ping } = &mut CONNECTION_DATA.status {
-            *ping = new_ping;
-        }
+pub async fn set_connection_ping(new_ping: u128) {
+    if let ConnectionStatus::Connected { ping } = &mut CONNECTION_DATA.lock().await.status {
+        *ping = new_ping;
+    }
+}
+pub async fn set_reconnect_tries(new_tries: u8) {
+    if let ConnectionStatus::Reconnecting { tries } = &mut CONNECTION_DATA.lock().await.status {
+        *tries = new_tries;
     }
 }
 
-pub fn get_join_code() -> Option<String> {
-    unsafe { CONNECTION_DATA.join_code.clone() }
+pub async fn get_join_code() -> Option<String> {
+    CONNECTION_DATA.lock().await.join_code.clone()
 }
 
-pub fn set_join_code(code: &str) {
-    unsafe { CONNECTION_DATA.join_code = Some(code.to_string()) }
+pub async fn set_join_code(code: &str) {
+    CONNECTION_DATA.lock().await.join_code = Some(code.to_string())
 }
 
-pub fn get_session_id() -> u16 {
-    unsafe { CONNECTION_DATA.session_id }
+pub async fn get_session_id() -> u16 {
+    CONNECTION_DATA.lock().await.session_id
 }
 
-pub fn set_session_id(session_id: u16) {
-    unsafe { CONNECTION_DATA.session_id = session_id }
+pub async fn set_session_id(session_id: u16) {
+    CONNECTION_DATA.lock().await.session_id = session_id
 }

@@ -1,27 +1,43 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{HashMap, VecDeque},
+    sync::Arc,
+};
 
 use lazy_static::lazy_static;
 use tokio::sync::Mutex;
 
+use crate::net::interface::GameAction;
+
 use super::{P2pPacket, P2pResponse};
 
 lazy_static! {
-    static ref TRANSACTION_TABLE: Mutex<
-        HashMap<
-            u16,
-            (
-                Option<P2pPacket>,
-                Option<Arc<Mutex<dyn FnMut(P2pResponse) + Send + Sync>>>
-            ),
+    static ref TRANSACTION_TABLE: Arc<
+        Mutex<
+            HashMap<
+                u16,
+                (
+                    Option<P2pPacket>,
+                    Option<Arc<Mutex<dyn FnMut(P2pResponse) + Send + Sync>>>
+                ),
+            >,
         >,
-    > = Mutex::new(HashMap::new());
+    > = Arc::new(Mutex::new(HashMap::new()));
 }
 
-/// Queue for outgoing packets. Follows First in First out principle.
-/// Each item in the queue is a tuple of two items: The outgoing packet, and a closure that runs when
-/// the outgoing packet has gotten a response.
-/// If the packet isn't meant to get a response, set the closure to `None`.
-static mut OUTGOING_QUEUE: Vec<(P2pPacket, u16)> = vec![];
+lazy_static! {
+    /// Queue for outgoing packets. Follows First in First out principle.
+    /// Each item in the queue is a tuple of two items: The outgoing packet, and a closure that runs when
+    /// the outgoing packet has gotten a response.
+    /// If the packet isn't meant to get a response, set the closure to `None`.
+    static ref OUTGOING_QUEUE: Arc<Mutex<VecDeque<(P2pPacket, u16)>>> =
+        Arc::new(Mutex::new(VecDeque::new()));
+}
+
+lazy_static! {
+    /// A list which holds all `GameActions` send from the other user.
+    static ref INCOMING_ACTIONS: Arc<Mutex<VecDeque<GameAction>>> =
+        Arc::new(Mutex::new(VecDeque::new()));
+}
 
 pub async fn push_outgoing_queue(
     data: P2pPacket,
@@ -31,44 +47,42 @@ pub async fn push_outgoing_queue(
         P2pPacket::Request(req) => req.transaction_id,
         P2pPacket::Response(resp) => resp.transaction_id,
     };
-    unsafe {
-        OUTGOING_QUEUE.push((data, transaction_id));
+    OUTGOING_QUEUE
+        .lock()
+        .await
+        .push_back((data, transaction_id));
 
-        TRANSACTION_TABLE
-            .lock()
-            .await
-            .insert(transaction_id, (None, closure));
-    }
+    TRANSACTION_TABLE
+        .lock()
+        .await
+        .insert(transaction_id, (None, closure));
     transaction_id
 }
 
 /// Pops and returns the next item in the outgoing network queue.
-pub fn pop_outgoing_queue() -> Option<(P2pPacket, u16)> {
-    unsafe { println!("Trying pop with len: {}", OUTGOING_QUEUE.len()) };
-    unsafe { OUTGOING_QUEUE.pop() }
+pub async fn pop_outgoing_queue() -> Option<(P2pPacket, u16)> {
+    OUTGOING_QUEUE.lock().await.pop_front()
 }
 
-pub fn get_outgoing_queue_len() -> usize {
-    unsafe { OUTGOING_QUEUE.len() }
+pub async fn get_outgoing_queue_len() -> usize {
+    OUTGOING_QUEUE.lock().await.len()
 }
 
 /// Sets the response to a request inside the transaction table.
 /// If the transaction has a closure, this will run that closure, and then remove the request and
 /// its response.
 pub async fn set_response(transaction_id: u16, response: Option<P2pPacket>) {
-    if let Some((_, closure)) = TRANSACTION_TABLE.lock().await.get(&transaction_id).clone() {
+    let table = &mut TRANSACTION_TABLE.lock().await;
+    if let Some((_, closure)) = table.get(&transaction_id) {
         if let Some(closure) = closure {
             if let Some(P2pPacket::Response(resp)) = response.clone() {
                 closure.lock().await(resp);
             }
-            TRANSACTION_TABLE.lock().await.remove(&transaction_id);
+            table.remove(&transaction_id);
         } else {
-            TRANSACTION_TABLE
-                .lock()
-                .await
-                .insert(transaction_id, (response, None));
-        }
-    };
+            table.insert(transaction_id, (response, None));
+        };
+    }
 }
 
 pub async fn new_transaction_id() -> u16 {
@@ -103,7 +117,7 @@ pub async fn wait_for_response(transaction_id: u16) -> P2pPacket {
             .await
             .clone()
             .get(&transaction_id)
-            .unwrap()
+            .unwrap_or(&(None, None))
             .clone();
 
         if let Some(resp) = response.0 {
@@ -111,4 +125,24 @@ pub async fn wait_for_response(transaction_id: u16) -> P2pPacket {
             return resp.clone();
         }
     }
+}
+
+pub async fn get_transaction_table() -> HashMap<
+    u16,
+    (
+        Option<P2pPacket>,
+        Option<Arc<Mutex<dyn FnMut(P2pResponse) + Send + Sync>>>,
+    ),
+> {
+    TRANSACTION_TABLE.lock().await.clone()
+}
+
+pub async fn push_incoming_gameaction(action: GameAction) {
+    INCOMING_ACTIONS.lock().await.push_back(action);
+}
+pub async fn pop_incoming_gameaction() -> Option<GameAction> {
+    INCOMING_ACTIONS.lock().await.pop_front()
+}
+pub async fn get_incoming_gameaction_len() -> usize {
+    INCOMING_ACTIONS.lock().await.len()
 }

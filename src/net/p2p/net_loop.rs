@@ -4,15 +4,16 @@ use std::{
 };
 
 use crate::net::{
+    interface::GameAction,
     p2p::{
         communicate::{recieve_p2p_packet, send_p2p_packet},
-        queue::{self, get_outgoing_queue_len},
+        queue::{self, get_incoming_gameaction_len, push_incoming_gameaction},
         P2pError, P2pPacket, P2pRequest, P2pRequestPacket, P2pResponse, P2pResponsePacket,
         PieceColor,
     },
     status::{
-        get_connection_status, get_connection_status_mut, get_join_code, get_other_addr,
-        get_session_id, set_connection_ping, set_connection_status, set_other_addr, set_session_id,
+        get_connection_status, get_join_code, get_other_addr, get_session_id, set_connection_ping,
+        set_connection_status, set_other_addr, set_reconnect_tries, set_session_id,
         ConnectionStatus, CONNECT_SESSION_ID,
     },
 };
@@ -35,15 +36,11 @@ pub fn host_network_loop(socket: tokio::net::UdpSocket) {
         let new_sock = socket.clone();
         async move {
             loop {
-                if get_other_addr().is_none() && get_outgoing_queue_len() >= 1 {
-                    println!("Smth wrong!");
-                }
-                let client_addr = match get_other_addr() {
+                let client_addr = match get_other_addr().await {
                     Some(addr) => addr,
                     None => continue,
                 };
-                if let Some((data, id)) = queue::pop_outgoing_queue() {
-                    println!("Sending Packet with ID {}... ({:?})", id, data);
+                if let Some((data, _id)) = queue::pop_outgoing_queue().await {
                     send_p2p_packet(&new_sock, data, client_addr).await.unwrap();
                 }
             }
@@ -56,11 +53,14 @@ pub fn host_network_loop(socket: tokio::net::UdpSocket) {
             let mut time_since_ping = Instant::now();
             loop {
                 if time_since_ping.elapsed().as_millis() >= DISCONNECT_TIME_MS
-                    && get_other_addr().is_some()
+                    && get_other_addr().await.is_some()
                 {
-                    println!("Client at {:?} disconnected!", get_other_addr().unwrap());
-                    set_other_addr(None);
-                    set_session_id(CONNECT_SESSION_ID);
+                    println!(
+                        "Client at {:?} disconnected!",
+                        get_other_addr().await.unwrap()
+                    );
+                    set_other_addr(None).await;
+                    set_session_id(CONNECT_SESSION_ID).await;
                 }
                 // Get incoming
                 let timeout_result = tokio::time::timeout(
@@ -69,12 +69,13 @@ pub fn host_network_loop(socket: tokio::net::UdpSocket) {
                 )
                 .await;
 
-                if let Err(_) = &timeout_result {
-                    continue;
-                }
-                let (incoming_packet, addr) = timeout_result.unwrap().unwrap();
-                println!("GOT PACKET:");
-                dbg!(&incoming_packet);
+                let (incoming_packet, addr) = match timeout_result {
+                    Ok(packet_result) => match packet_result {
+                        Ok(packet) => packet,
+                        Err(_) => continue,
+                    },
+                    Err(_) => continue,
+                };
 
                 match incoming_packet {
                     P2pPacket::Request(req) => {
@@ -84,13 +85,13 @@ pub fn host_network_loop(socket: tokio::net::UdpSocket) {
                                 join_code,
                                 username,
                             } => {
-                                if get_other_addr().is_some() {
+                                if get_other_addr().await.is_some() {
                                     println!(
                                         "Failed join attempt from {:?} - Game session full.",
                                         addr
                                     );
                                     P2pResponsePacket::error(P2pError::FullGameSession)
-                                } else if join_code != get_join_code().unwrap() {
+                                } else if join_code != get_join_code().await.unwrap() {
                                     println!(
                                         "Failed join attempt from {:?} - Wrong join code.",
                                         addr
@@ -105,9 +106,9 @@ pub fn host_network_loop(socket: tokio::net::UdpSocket) {
                                 } else {
                                     println!("{} at {:?} Joined the game!", username, addr);
 
-                                    set_session_id(rand::random::<u16>());
-                                    set_connection_status(ConnectionStatus::connected());
-                                    set_other_addr(Some(addr));
+                                    set_session_id(rand::random::<u16>()).await;
+                                    set_connection_status(ConnectionStatus::connected()).await;
+                                    set_other_addr(Some(addr)).await;
 
                                     P2pResponsePacket::Connect {
                                         client_color: PieceColor::White,
@@ -116,12 +117,24 @@ pub fn host_network_loop(socket: tokio::net::UdpSocket) {
                                 }
                             }
                             P2pRequestPacket::Resync => P2pResponsePacket::resync(vec![None; 64]),
-                            _ => P2pResponsePacket::error(P2pError::InvalidBoard),
+                            P2pRequestPacket::GameAction { action } => {
+                                match action {
+                                    GameAction::Surrender => {
+                                        // TODO: Verify Surrender
+                                        push_incoming_gameaction(action).await;
+                                        P2pResponsePacket::Acknowledge
+                                    }
+                                    GameAction::MovePiece { to: _, from: _ } => {
+                                        // TODO: Verify move
+                                        push_incoming_gameaction(action).await;
+                                        P2pResponsePacket::Acknowledge
+                                    }
+                                }
+                            }
                         };
-                        let session_id = get_session_id();
+                        let session_id = get_session_id().await;
                         let response = P2pResponse::new(session_id, req.transaction_id, packet);
                         queue::push_outgoing_queue(P2pPacket::Response(response), None).await;
-                        println!("QUEUE LEN: {}", get_outgoing_queue_len());
                         time_since_ping = Instant::now();
                     }
                     P2pPacket::Response(resp) => {
@@ -155,16 +168,17 @@ pub fn client_network_loop(socket: tokio::net::UdpSocket, pings: usize) {
             loop {
                 interval.tick().await;
 
-                if !get_connection_status().is_connected() {
+                let connection_status = get_connection_status().await;
+                if !connection_status.is_connected() && !connection_status.is_reconnecting() {
                     continue;
                 }
-                if get_other_addr().is_none() {
+                if get_other_addr().await.is_none() {
                     continue;
                 }
 
                 let time = Instant::now();
 
-                let session_id = get_session_id();
+                let session_id = get_session_id().await;
 
                 let ping_id = new_transaction_id().await;
                 let ping = P2pRequest::new(session_id, ping_id, P2pRequestPacket::Ping);
@@ -184,24 +198,28 @@ pub fn client_network_loop(socket: tokio::net::UdpSocket, pings: usize) {
                                 dbg!(&pong);
                             }
                             let elapsed_ns = time.elapsed().as_nanos();
-                            print!("\rping: {} ns", elapsed_ns);
-                            set_connection_status(ConnectionStatus::connected());
-                            set_connection_ping(elapsed_ns);
+                            println!("ping: {} ns", elapsed_ns);
+                            if !get_connection_status().await.is_connected() {
+                                set_connection_status(ConnectionStatus::connected()).await;
+                            }
+                            set_connection_ping(elapsed_ns).await;
                         }
                     }
                     Err(e) => {
-                        println!("Ping request time out: {}", e.to_string());
-                        let status = get_connection_status_mut();
-                        if let ConnectionStatus::Reconnecting { tries } = status {
-                            if *tries >= RECONNECT_TRIES as u8 {
-                                *status = ConnectionStatus::Disconnected;
-                                set_other_addr(None);
+                        if let ConnectionStatus::Reconnecting { tries } =
+                            get_connection_status().await
+                        {
+                            println!("Trying to reconnect... ({} / {})", tries, RECONNECT_TRIES);
+                            if tries >= RECONNECT_TRIES as u8 {
+                                set_connection_status(ConnectionStatus::Disconnected).await;
+                                set_other_addr(None).await;
                                 println!("Disconnected from host");
                             } else {
-                                *tries += 1;
+                                set_reconnect_tries(tries + 1).await;
                             }
                         } else {
-                            *status = ConnectionStatus::reconnecting();
+                            println!("Ping request time out: {}", e.to_string());
+                            set_connection_status(ConnectionStatus::reconnecting()).await;
                         }
                     }
                 }
@@ -213,15 +231,13 @@ pub fn client_network_loop(socket: tokio::net::UdpSocket, pings: usize) {
         let new_sock = socket.clone();
         async move {
             loop {
-                let client_addr = match get_other_addr() {
+                let client_addr = match get_other_addr().await {
                     Some(addr) => addr,
                     None => continue,
                 };
-                if let Some((data, id)) = queue::pop_outgoing_queue() {
-                    println!("Sending Packet with ID {}... ({:?})", id, data);
+                if let Some((data, _id)) = queue::pop_outgoing_queue().await {
+                    // println!("Sending Packet with ID {}... ({:?})", id, data);
                     send_p2p_packet(&new_sock, data, client_addr).await.unwrap();
-                } else {
-                    println!("Queue empty");
                 }
             }
         }
@@ -237,32 +253,52 @@ pub fn client_network_loop(socket: tokio::net::UdpSocket, pings: usize) {
                 )
                 .await;
 
-                if let Err(_e) = &timeout_result {
+                let (incoming_packet, addr) = match timeout_result {
+                    Ok(packet_result) => match packet_result {
+                        Ok(packet) => packet,
+                        Err(_) => continue,
+                    },
+                    Err(_) => continue,
+                };
+                if addr != get_other_addr().await.unwrap() {
                     continue;
                 }
-                let (incoming_packet, addr) = timeout_result.unwrap().unwrap();
-                if addr != get_other_addr().unwrap() {
-                    continue;
-                }
-                println!("GOT PACKET:");
-                dbg!(&incoming_packet);
                 match incoming_packet {
                     P2pPacket::Request(req) => {
                         let packet = match req.packet {
                             P2pRequestPacket::Ping => P2pResponsePacket::Pong,
+                            P2pRequestPacket::GameAction { action } => {
+                                match action {
+                                    GameAction::Surrender => {
+                                        // TODO: Verify Surrender
+                                        push_incoming_gameaction(action).await;
+                                        println!(
+                                            "Incoming action len: {}",
+                                            get_incoming_gameaction_len().await
+                                        );
+                                        P2pResponsePacket::Acknowledge
+                                    }
+                                    GameAction::MovePiece { to: _, from: _ } => {
+                                        // TODO: Verify move
+                                        push_incoming_gameaction(action).await;
+                                        println!(
+                                            "Incoming action len: {}",
+                                            get_incoming_gameaction_len().await
+                                        );
+                                        P2pResponsePacket::Acknowledge
+                                    }
+                                }
+                            }
                             _ => P2pResponsePacket::error(P2pError::WrongDirection),
                         };
-                        println!("Sending following packet:");
-
                         let response = P2pResponse::new(req.session_id, req.transaction_id, packet);
-                        dbg!(&response);
                         send_p2p_packet(&new_sock, response, addr).await.unwrap();
                         println!("Sent package");
                     }
                     P2pPacket::Response(resp) => {
-                        if !queue::check_transaction_id(resp.transaction_id).await {
-                            continue;
-                        }
+                        // if !queue::check_transaction_id(resp.transaction_id).await {
+                        //     continue;
+                        // }
                         queue::set_response(resp.transaction_id, Some(P2pPacket::Response(resp)))
                             .await;
                     }

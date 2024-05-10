@@ -1,8 +1,10 @@
-use std::{env, thread::sleep, time::Duration};
-
-use crate::net::interface;
-
 pub mod net;
+
+use crate::net::{
+    interface::{self, get_next_game_action},
+    status::get_connection_status,
+};
+use std::{env, thread::sleep, time::Duration};
 
 #[tokio::main]
 async fn main() {
@@ -13,8 +15,30 @@ async fn main() {
         "host" => {
             let join_code = interface::start_lan_host().await;
             println!("JOIN CODE:\n{}", join_code);
+            while !get_connection_status().await.is_connected() {}
+
+            sleep(Duration::from_secs(3));
+
+            interface::send_game_action(interface::GameAction::Surrender, |_| {
+                println!("Got resp!! (HELL YES!!)");
+            });
+
+            sleep(Duration::from_secs(3));
+
+            interface::send_game_action(interface::GameAction::Surrender, |_| {
+                println!("Got resp!! (HELL YES!!)");
+            })
         }
-        "join" => interface::start_lan_client(&args[2]).await,
+        "join" => {
+            interface::start_lan_client(&args[2]).await;
+
+            loop {
+                if let Some(action) = get_next_game_action().await {
+                    println!("Recieved action");
+                    dbg!(&action);
+                }
+            }
+        }
         _ => {}
     }
     sleep(Duration::from_secs(60));
