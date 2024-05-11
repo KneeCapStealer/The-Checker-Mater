@@ -23,5 +23,6 @@ futures = "0.3.30"
 slint-build = "1.5.0"
 
 [lints.clippy]
-todo = "warn"
-dbg_macro = "warn"
+todo = "deny"
+dbg_macro = "deny"
+umimplemented = "deny"
