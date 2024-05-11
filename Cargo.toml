@@ -21,3 +21,7 @@ futures = "0.3.30"
 
 [build-dependencies]
 slint-build = "1.5.0"
+
+[lints.clippy]
+todo = "warn"
+dbg_macro = "warn"
