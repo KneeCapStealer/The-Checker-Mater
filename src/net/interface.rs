@@ -9,7 +9,7 @@ use futures::executor;
 use tokio::sync::Mutex;
 
 use crate::{
-    checkers_game::PieceColor,
+    game::PieceColor,
     net::{
         net_utils::{get_available_port, get_local_ip, hex_decode_ip, hex_encode_ip},
         p2p::{

@@ -9,7 +9,7 @@ use super::{
     net_utils::{FromPacket, PacketError, ToByte, ToPacket},
 };
 
-use crate::checkers_game::{PieceColor, PieceData};
+use crate::game::{PieceColor, PieceData};
 
 #[derive(Clone, Debug)]
 pub enum P2pPacket {
