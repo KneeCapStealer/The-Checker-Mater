@@ -14,9 +14,9 @@ serde = { version = "1.0.198", features = ["derive"] }  # Serializing and Deseri
 ron = "0.8.1"                                           # Extension to Serde, for the .ron format
 anyhow = "1.0.82"                                       # Error handling
 thiserror = "1.0.59"                                    # Custom errors
-rand = "0.8.5"
-lazy_static = "1.4.0"
-futures = "0.3.30"
+rand = "0.8.5"                                          # Random numbers (For transaction- & Session ID)
+lazy_static = "1.4.0"                                   # For static variables without a const init
+futures = "0.3.30"                                      # For blocking a thread until an async func is done
 
 
 [build-dependencies]
