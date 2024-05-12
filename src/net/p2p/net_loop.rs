@@ -12,9 +12,9 @@ use crate::net::{
         PieceColor,
     },
     status::{
-        get_connection_status, get_join_code, get_other_addr, get_session_id, set_connection_ping,
-        set_connection_status, set_other_addr, set_reconnect_tries, set_session_id,
-        ConnectionStatus, CONNECT_SESSION_ID,
+        get_connection_status, get_join_code, get_other_addr, get_session_id, remove_other_addr,
+        remove_other_username, set_connection_ping, set_connection_status, set_other_addr,
+        set_reconnect_tries, set_session_id, ConnectionStatus, CONNECT_SESSION_ID,
     },
 };
 
@@ -59,7 +59,8 @@ pub fn host_network_loop(socket: tokio::net::UdpSocket) {
                         "Client at {:?} disconnected!",
                         get_other_addr().await.unwrap()
                     );
-                    set_other_addr(None).await;
+                    remove_other_addr().await;
+                    remove_other_username().await;
                     set_session_id(CONNECT_SESSION_ID).await;
                 }
                 // Get incoming
@@ -108,7 +109,7 @@ pub fn host_network_loop(socket: tokio::net::UdpSocket) {
 
                                     set_session_id(rand::random::<u16>()).await;
                                     set_connection_status(ConnectionStatus::connected()).await;
-                                    set_other_addr(Some(addr)).await;
+                                    set_other_addr(addr).await;
 
                                     P2pResponsePacket::Connect {
                                         client_color: PieceColor::White,
@@ -212,7 +213,8 @@ pub fn client_network_loop(socket: tokio::net::UdpSocket, pings: usize) {
                             println!("Trying to reconnect... ({} / {})", tries, RECONNECT_TRIES);
                             if tries >= RECONNECT_TRIES as u8 {
                                 set_connection_status(ConnectionStatus::Disconnected).await;
-                                set_other_addr(None).await;
+                                remove_other_addr().await;
+                                remove_other_username().await;
                                 println!("Disconnected from host");
                             } else {
                                 set_reconnect_tries(tries + 1).await;

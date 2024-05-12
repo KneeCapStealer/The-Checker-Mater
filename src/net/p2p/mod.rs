@@ -9,6 +9,8 @@ use super::{
     net_utils::{FromPacket, PacketError, ToByte, ToPacket},
 };
 
+use crate::checkers_game::{PieceColor, PieceData};
+
 #[derive(Clone, Debug)]
 pub enum P2pPacket {
     Request(P2pRequest),
@@ -308,7 +310,7 @@ pub enum P2pResponsePacket {
     /// A response to `P2pRequestPacket::Resync`, features the hosts version of the game board.
     Resync {
         /// The hosts version of the game board, which the client will copy.
-        board: Vec<Tile>,
+        board: Vec<Option<PieceData>>,
     },
     /// A simple acknowledge.
     Acknowledge,
@@ -554,11 +556,6 @@ impl TryFrom<u8> for P2pError {
 }
 
 /// THIS IS A TEMP ENUM
-#[derive(Clone, Debug, PartialEq)]
-pub enum PieceColor {
-    White,
-    Black,
-}
 impl ToByte for PieceColor {
     fn to_u8(&self) -> u8 {
         match self {
@@ -581,25 +578,50 @@ impl TryFrom<u8> for PieceColor {
     }
 }
 /// THIS IS A TEMP STRUCT
-#[derive(Clone, Debug, PartialEq)]
-pub struct Piece {
-    color: PieceColor,
-    is_king: bool,
-}
-impl ToByte for Piece {
+impl ToByte for PieceData {
     fn to_u8(&self) -> u8 {
-        0
+        let mut byte: u8 = 0;
+
+        match self.color {
+            PieceColor::White => {
+                byte |= 0b001;
+            }
+            PieceColor::Black => {
+                byte |= 0b010;
+            }
+        }
+
+        if self.is_king {
+            byte |= 0b100;
+        }
+
+        byte
     }
 }
-impl TryFrom<u8> for Piece {
+impl TryFrom<u8> for PieceData {
     type Error = anyhow::Error;
-    fn try_from(_value: u8) -> Result<Self, Self::Error> {
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        if value == 0 {
+            return Err(anyhow!("Got empty byte"));
+        }
+
+        if (value & 0b11).count_ones() != 1 {
+            return Err(anyhow!("Got byte in wrong format"));
+        }
+
+        let color = if value & 0b01 == 1 {
+            PieceColor::White
+        } else {
+            PieceColor::Black
+        };
+
+        let is_king = value & 0b100 == 1;
+
         let piece = Self {
-            color: PieceColor::White,
-            is_king: false,
+            color,
+            is_active: false,
+            is_king,
         };
         Ok(piece)
     }
 }
-/// THIS IS A TEMP TYPE
-type Tile = Option<Piece>;
