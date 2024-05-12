@@ -4,25 +4,29 @@ use std::{
     time::Duration,
 };
 
-use futures::executor;
+use anyhow::anyhow;
+use futures::{channel::mpsc::UnboundedSender, executor};
 use tokio::sync::Mutex;
 
 use crate::net::{
     net_utils::hex_decode_ip,
     p2p::{
         net_loop::client_network_loop,
-        queue::{new_transaction_id, push_outgoing_queue, wait_for_response},
+        queue::{new_transaction_id, push_outgoing_queue},
         P2pPacket, P2pRequest, P2pRequestPacket,
     },
     status::{
         get_session_id, set_connection_status, set_other_addr, set_session_id, ConnectionStatus,
+        CONNECT_SESSION_ID,
     },
 };
 
 use super::{
     net_utils::{get_available_port, get_local_ip, hex_encode_ip},
     p2p::{
-        net_loop::host_network_loop, queue::pop_incoming_gameaction, P2pResponse, P2pResponsePacket,
+        net_loop::host_network_loop,
+        queue::{check_for_response, pop_incoming_gameaction},
+        P2pResponse, P2pResponsePacket, PieceColor,
     },
     status::set_join_code,
 };
@@ -45,55 +49,8 @@ impl GameAction {
     }
 }
 
-/// Start the client network peer on a LAN connection.
-/// * `join_code` - The join code sent by the host.
-pub async fn start_lan_client(join_code: &str) {
-    let port = get_available_port().await.unwrap();
-    let socket = tokio::net::UdpSocket::bind(("0.0.0.0", port))
-        .await
-        .unwrap();
-
-    set_join_code(join_code).await;
-    let host_addr = hex_decode_ip(join_code).unwrap();
-    set_other_addr(Some(host_addr)).await;
-
-    // Start client network loop, with 10 pings pr. second
-    client_network_loop(socket, 10);
-
-    let join_request = P2pRequest::new(
-        get_session_id().await,
-        new_transaction_id().await,
-        P2pRequestPacket::Connect {
-            join_code: join_code.to_owned(),
-            username: "Client".to_owned(),
-        },
-    );
-    println!("Asking to join Host at {:?}", host_addr);
-
-    set_connection_status(ConnectionStatus::PendingConnection).await;
-
-    let id = push_outgoing_queue(P2pPacket::Request(join_request.clone()), None).await;
-
-    if let Ok(resp) = tokio::time::timeout(Duration::from_millis(1000), wait_for_response(id)).await
-    {
-        println!("GOT ANSWER!!!!");
-        dbg!(&resp);
-        if let P2pPacket::Response(resp) = resp {
-            println!("Got response");
-
-            println!("Setting connection to Connected!");
-            set_connection_status(ConnectionStatus::connected()).await;
-            println!("Connection sat to connected!!");
-
-            set_session_id(resp.session_id).await;
-
-            dbg!(&resp);
-        }
-    }
-}
-
 /// Start the host network peer on a LAN connection.
-/// Returns the join code for the client.
+/// Returns the join code for the client
 pub async fn start_lan_host() -> String {
     let port = get_available_port().await.unwrap();
     let socket = tokio::net::UdpSocket::bind(("0.0.0.0", port))
@@ -110,6 +67,104 @@ pub async fn start_lan_host() -> String {
     encoded_ip
 }
 
+/// Start the client network peer on a LAN connection.
+pub async fn start_lan_client() {
+    let port = get_available_port().await.unwrap();
+    let socket = tokio::net::UdpSocket::bind(("0.0.0.0", port))
+        .await
+        .unwrap();
+
+    // Start client network loop, with 10 pings pr. second
+    client_network_loop(socket, 10);
+}
+
+/// Sends a join request to the host.
+/// This function should only be called by the client, and only after the client network loop has
+/// started, via. `start_lan_client()`.
+///
+/// ## Params
+/// * `join_code` - The join code sent by the host.
+pub async fn send_join_request(join_code: &str, username: &str) -> u16 {
+    set_join_code(join_code).await;
+    let host_addr = hex_decode_ip(join_code).unwrap();
+    set_other_addr(Some(host_addr)).await;
+
+    let join_request = P2pRequest::new(
+        CONNECT_SESSION_ID,
+        new_transaction_id().await,
+        P2pRequestPacket::Connect {
+            join_code: join_code.to_owned(),
+            username: username.to_owned(),
+        },
+    );
+    println!("Asking to join Host at {:?}", host_addr);
+
+    set_connection_status(ConnectionStatus::PendingConnection).await;
+
+    let id = push_outgoing_queue(P2pPacket::Request(join_request.clone()), None).await;
+
+    // if let Ok(resp) = tokio::time::timeout(Duration::from_millis(1000), wait_for_response(id)).await
+    // {
+    //     println!("GOT ANSWER!!!!");
+    //     dbg!(&resp);
+    //     if let P2pPacket::Response(resp) = resp {
+    //         println!("Got response");
+    //
+    //         println!("Setting connection to Connected!");
+    //         set_connection_status(ConnectionStatus::connected()).await;
+    //         println!("Connection sat to connected!!");
+    //
+    //         set_session_id(resp.session_id).await;
+    //
+    //         dbg!(&resp);
+    //     }
+    // }
+    id
+}
+
+/// Check if the connection request sent with `send_join_request()` has gotten an response.
+/// If a packet has been recieved, and if that packet is a correct response, the function will
+/// return the clients assigned piece color, as well as the hosts username.
+///
+/// ## Params
+/// * `transaction_id` - The id of the join request
+pub async fn check_for_connection_resp(
+    transaction_id: u16,
+) -> Option<anyhow::Result<(PieceColor, String)>> {
+    match check_for_response(transaction_id).await {
+        Some(resp) => match resp {
+            P2pPacket::Response(resp) => match resp.packet {
+                P2pResponsePacket::Connect {
+                    client_color,
+                    host_username,
+                } => {
+                    set_connection_status(ConnectionStatus::connected()).await;
+                    set_session_id(resp.session_id).await;
+                    return Some(Ok((client_color, host_username)));
+                }
+                _ => Some(Err(anyhow!("Got wrong response Packet"))),
+            },
+            _ => Some(Err(anyhow!("Got request packet instead of response"))),
+        },
+        None => None,
+    }
+}
+
+pub async fn connect_to_host_loop(join_code: &str, username: &str) {
+    let mut connection_tick = tokio::time::interval(Duration::from_millis(500));
+    'outer: loop {
+        let join_id = send_join_request(join_code, username).await;
+
+        for _ in 0..25 {
+            connection_tick.tick().await;
+            if let Some(resp) = check_for_connection_resp(join_id).await {
+                dbg!(&resp);
+                break 'outer;
+            }
+        }
+    }
+}
+
 /// Gets the other users username
 pub fn get_other_username() -> String {
     todo!()
@@ -121,9 +176,7 @@ pub async fn get_next_game_action() -> Option<GameAction> {
 }
 
 /// Send a game action to the other user.
-/// The function is async, but only because it needs to be, to push the game action onto the
-/// outgoing queue.
-/// It will not wait until it gets a response.
+/// The function is not blocking the thread until it gets a response.
 ///
 /// ## Params:
 /// * `action` - The game action you want to send, is of type `GameAction`
@@ -141,7 +194,7 @@ pub async fn get_next_game_action() -> Option<GameAction> {
 ///     };
 /// }
 ///
-/// send_game_action(action, callback).await;
+/// send_game_action(action, callback);
 /// ```
 pub fn send_game_action<F>(action: GameAction, mut on_response: F)
 where

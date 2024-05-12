@@ -30,7 +30,9 @@ async fn main() {
             })
         }
         "join" => {
-            interface::start_lan_client(&args[2]).await;
+            interface::start_lan_client().await;
+
+            interface::connect_to_host_loop(&args[2], "CLIENT").await;
 
             loop {
                 if let Some(action) = get_next_game_action().await {
