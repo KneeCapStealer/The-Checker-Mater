@@ -150,16 +150,15 @@ pub async fn check_for_connection_resp(
     }
 }
 
-pub async fn connect_to_host_loop(join_code: &str, username: &str) {
+pub async fn connect_to_host_loop(join_code: &str, username: &str) -> (PieceColor, String) {
     let mut connection_tick = tokio::time::interval(Duration::from_millis(500));
-    'outer: loop {
+    loop {
         let join_id = send_join_request(join_code, username).await;
 
         for _ in 0..25 {
             connection_tick.tick().await;
             if let Some(resp) = check_for_connection_resp(join_id).await {
-                dbg!(&resp);
-                break 'outer;
+                return resp;
             }
         }
     }
