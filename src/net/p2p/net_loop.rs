@@ -117,7 +117,7 @@ pub fn host_network_loop(socket: tokio::net::UdpSocket) {
                                     }
                                 }
                             }
-                            P2pRequestPacket::Resync => P2pResponsePacket::resync(vec![None; 64]),
+                            P2pRequestPacket::Resync => P2pResponsePacket::resync(vec![]),
                             P2pRequestPacket::GameAction { action } => {
                                 match action {
                                     GameAction::Surrender => {

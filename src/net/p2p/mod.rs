@@ -310,7 +310,7 @@ pub enum P2pResponsePacket {
     /// A response to `P2pRequestPacket::Resync`, features the hosts version of the game board.
     Resync {
         /// The hosts version of the game board, which the client will copy.
-        board: Vec<Option<PieceData>>,
+        board: Vec<PieceData>,
     },
     /// A simple acknowledge.
     Acknowledge,
@@ -328,7 +328,7 @@ impl P2pResponsePacket {
         }
     }
     /// A response to `P2pRequestPacket::Resync`, features the hosts version of the game board.
-    pub fn resync(board: Vec<Tile>) -> Self {
+    pub fn resync(board: Vec<PieceData>) -> Self {
         Self::Resync { board }
     }
 }
@@ -357,11 +357,7 @@ impl ToPacket for P2pResponsePacket {
                 bytes.append(&mut self.to_u8().to_be_bytes().to_vec()); // Packet type code
 
                 for tile in board {
-                    if let Some(piece) = tile {
-                        bytes.append(&mut vec![piece.to_u8()]);
-                    } else {
-                        bytes.append(&mut 0u8.to_be_bytes().to_vec());
-                    }
+                    bytes.append(&mut vec![tile.to_u8()]);
                 }
             }
             Self::Acknowledge => {
@@ -427,8 +423,8 @@ impl FromPacket for P2pResponsePacket {
                 }
                 let mut board = vec![];
                 for byte in packet[1..].to_vec() {
-                    match Piece::try_from(byte) {
-                        Ok(piece) => board.push(Some(piece)),
+                    match PieceData::try_from(byte) {
+                        Ok(piece) => board.push(piece),
                         Err(e) => return Err(PacketError::data_error(&e.to_string()).into()),
                     }
                 }
@@ -582,6 +578,10 @@ impl ToByte for PieceData {
     fn to_u8(&self) -> u8 {
         let mut byte: u8 = 0;
 
+        if self.is_active {
+            return byte;
+        }
+
         match self.color {
             PieceColor::White => {
                 byte |= 0b001;
@@ -602,7 +602,12 @@ impl TryFrom<u8> for PieceData {
     type Error = anyhow::Error;
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         if value == 0 {
-            return Err(anyhow!("Got empty byte"));
+            let piece = Self {
+                color: PieceColor::White,
+                is_active: false,
+                is_king: false,
+            };
+            return Ok(piece);
         }
 
         if (value & 0b11).count_ones() != 1 {
@@ -619,7 +624,7 @@ impl TryFrom<u8> for PieceData {
 
         let piece = Self {
             color,
-            is_active: false,
+            is_active: true,
             is_king,
         };
         Ok(piece)

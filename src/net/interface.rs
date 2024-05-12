@@ -8,17 +8,21 @@ use anyhow::anyhow;
 use futures::executor;
 use tokio::sync::Mutex;
 
-use crate::net::{
-    net_utils::{get_available_port, get_local_ip, hex_decode_ip, hex_encode_ip},
-    p2p::{
-        net_loop::client_network_loop,
-        net_loop::host_network_loop,
-        queue::{
-            check_for_response, new_transaction_id, pop_incoming_gameaction, push_outgoing_queue,
+use crate::{
+    checkers_game::PieceColor,
+    net::{
+        net_utils::{get_available_port, get_local_ip, hex_decode_ip, hex_encode_ip},
+        p2p::{
+            net_loop::client_network_loop,
+            net_loop::host_network_loop,
+            queue::{
+                check_for_response, new_transaction_id, pop_incoming_gameaction,
+                push_outgoing_queue,
+            },
+            P2pPacket, P2pRequest, P2pRequestPacket, P2pResponse, P2pResponsePacket,
         },
-        P2pPacket, P2pRequest, P2pRequestPacket, P2pResponse, P2pResponsePacket, PieceColor,
+        status,
     },
-    status,
 };
 
 /// An enum which holds the possible actions a user can make in the game.
