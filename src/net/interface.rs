@@ -9,26 +9,16 @@ use futures::executor;
 use tokio::sync::Mutex;
 
 use crate::net::{
-    net_utils::hex_decode_ip,
+    net_utils::{get_available_port, get_local_ip, hex_decode_ip, hex_encode_ip},
     p2p::{
         net_loop::client_network_loop,
-        queue::{new_transaction_id, push_outgoing_queue},
-        P2pPacket, P2pRequest, P2pRequestPacket,
-    },
-    status::{
-        get_session_id, set_connection_status, set_other_addr, set_session_id, ConnectionStatus,
-        CONNECT_SESSION_ID,
-    },
-};
-
-use super::{
-    net_utils::{get_available_port, get_local_ip, hex_encode_ip},
-    p2p::{
         net_loop::host_network_loop,
-        queue::{check_for_response, pop_incoming_gameaction},
-        P2pResponse, P2pResponsePacket, PieceColor,
+        queue::{
+            check_for_response, new_transaction_id, pop_incoming_gameaction, push_outgoing_queue,
+        },
+        P2pPacket, P2pRequest, P2pRequestPacket, P2pResponse, P2pResponsePacket, PieceColor,
     },
-    status::set_join_code,
+    status,
 };
 
 /// An enum which holds the possible actions a user can make in the game.
@@ -58,7 +48,7 @@ pub fn start_lan_host() -> String {
     let local_ip = get_local_ip().unwrap();
 
     let encoded_ip = hex_encode_ip(SocketAddr::new(IpAddr::V4(local_ip), port)).unwrap();
-    executor::block_on(set_join_code(&encoded_ip));
+    executor::block_on(status::set_join_code(&encoded_ip));
 
     host_network_loop(socket);
 
@@ -82,12 +72,12 @@ pub fn start_lan_client() {
 /// * `join_code` - The join code sent by the host.
 /// * `username` - The clients username.
 pub fn send_join_request(join_code: &str, username: &str) -> u16 {
-    executor::block_on(set_join_code(join_code));
+    executor::block_on(status::set_join_code(join_code));
     let host_addr = hex_decode_ip(join_code).unwrap();
-    executor::block_on(set_other_addr(Some(host_addr)));
+    executor::block_on(status::set_other_addr(host_addr));
 
     let join_request = P2pRequest::new(
-        CONNECT_SESSION_ID,
+        status::CONNECT_SESSION_ID,
         executor::block_on(new_transaction_id()),
         P2pRequestPacket::Connect {
             join_code: join_code.to_owned(),
@@ -96,7 +86,9 @@ pub fn send_join_request(join_code: &str, username: &str) -> u16 {
     );
     println!("Asking to join Host at {:?}", host_addr);
 
-    executor::block_on(set_connection_status(ConnectionStatus::PendingConnection));
+    executor::block_on(status::set_connection_status(
+        status::ConnectionStatus::PendingConnection,
+    ));
 
     executor::block_on(push_outgoing_queue(
         P2pPacket::Request(join_request.clone()),
@@ -120,8 +112,11 @@ pub fn check_for_connection_resp(
                     client_color,
                     host_username,
                 } => {
-                    executor::block_on(set_connection_status(ConnectionStatus::connected()));
-                    executor::block_on(set_session_id(resp.session_id));
+                    executor::block_on(status::set_connection_status(
+                        status::ConnectionStatus::connected(),
+                    ));
+                    executor::block_on(status::set_session_id(resp.session_id));
+                    executor::block_on(status::set_other_username(&host_username));
                     Some(Ok((client_color, host_username)))
                 }
                 P2pResponsePacket::Error { kind } => {
@@ -197,7 +192,7 @@ where
     }));
 
     let request = P2pRequest {
-        session_id: executor::block_on(get_session_id()),
+        session_id: executor::block_on(status::get_session_id()),
         transaction_id: executor::block_on(new_transaction_id()),
         packet: P2pRequestPacket::game_action(action),
     };
@@ -205,4 +200,14 @@ where
         P2pPacket::Request(request),
         Some(closure),
     ));
+}
+
+/// Check if there is an established connection between the host and client.
+pub fn is_connected() -> bool {
+    executor::block_on(status::get_connection_status()).is_connected()
+}
+
+/// Gets the other users username.
+pub fn get_other_username() -> Option<String> {
+    executor::block_on(status::get_other_username())
 }
