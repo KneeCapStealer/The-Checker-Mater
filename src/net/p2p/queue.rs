@@ -109,6 +109,21 @@ pub async fn check_transaction_id(transaction_id: u16) -> bool {
         .is_some()
 }
 
+pub async fn check_for_response(transaction_id: u16) -> Option<P2pPacket> {
+    let response = TRANSACTION_TABLE
+        .lock()
+        .await
+        .clone()
+        .get(&transaction_id)
+        .unwrap_or(&(None, None))
+        .clone();
+
+    if response.0.is_some() {
+        TRANSACTION_TABLE.lock().await.remove(&transaction_id);
+    }
+    response.0
+}
+
 /// Wait for the transaction ID to get a response
 pub async fn wait_for_response(transaction_id: u16) -> P2pPacket {
     loop {
