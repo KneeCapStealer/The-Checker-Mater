@@ -1,4 +1,4 @@
 pub mod interface;
-pub mod net_utils;
-pub mod p2p;
-pub mod status;
+mod net_utils;
+mod p2p;
+mod status;
