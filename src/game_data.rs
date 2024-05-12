@@ -1,16 +1,18 @@
+use slint::ComponentHandle;
+
 use crate::checkers_game::{Board, GameWindow, PieceColor, WindowType};
 use std::cell::{RefCell, RefMut};
 use std::rc::Rc;
 
 pub struct GameData {
-    window: Rc<GameWindow>,
+    window: GameWindow,
     board: Rc<RefCell<Board>>,
     is_host: Option<bool>,
 }
 
 impl GameData {
     pub fn new() -> Result<Self, slint::PlatformError> {
-        let window = Rc::new(GameWindow::new()?);
+        let window = GameWindow::new()?;
         let board = Rc::new(RefCell::new(Board::new(&window)));
 
         Ok(GameData {
@@ -42,7 +44,7 @@ impl GameData {
     }
 
     pub fn on_join_game(&self) -> impl FnMut() + 'static {
-        let window_weak = Rc::downgrade(&self.window);
+        let window_weak = self.window.as_weak();
         move || {
             let window = window_weak.upgrade().unwrap();
             window.set_window_state(WindowType::Game);

@@ -1,13 +1,8 @@
-use std::{borrow::BorrowMut, process::exit};
+use std::process::exit;
 
 use slint::ComponentHandle;
 
-use std::{cell::RefCell, rc::Rc};
-
-use the_checker_mater::{
-    checkers_game::{Board, GameWindow, PieceColor},
-    game_data::GameData,
-};
+use the_checker_mater::game_data::GameData;
 
 fn main() -> Result<(), slint::PlatformError> {
     let mut gamedata: GameData = GameData::new()?;
