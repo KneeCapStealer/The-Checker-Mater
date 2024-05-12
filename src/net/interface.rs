@@ -101,25 +101,7 @@ pub async fn send_join_request(join_code: &str, username: &str) -> u16 {
 
     set_connection_status(ConnectionStatus::PendingConnection).await;
 
-    let id = push_outgoing_queue(P2pPacket::Request(join_request.clone()), None).await;
-
-    // if let Ok(resp) = tokio::time::timeout(Duration::from_millis(1000), wait_for_response(id)).await
-    // {
-    //     println!("GOT ANSWER!!!!");
-    //     dbg!(&resp);
-    //     if let P2pPacket::Response(resp) = resp {
-    //         println!("Got response");
-    //
-    //         println!("Setting connection to Connected!");
-    //         set_connection_status(ConnectionStatus::connected()).await;
-    //         println!("Connection sat to connected!!");
-    //
-    //         set_session_id(resp.session_id).await;
-    //
-    //         dbg!(&resp);
-    //     }
-    // }
-    id
+    push_outgoing_queue(P2pPacket::Request(join_request.clone()), None).await
 }
 
 /// Check if the connection request sent with `send_join_request()` has gotten an response.
@@ -140,7 +122,7 @@ pub async fn check_for_connection_resp(
                 } => {
                     set_connection_status(ConnectionStatus::connected()).await;
                     set_session_id(resp.session_id).await;
-                    return Some(Ok((client_color, host_username)));
+                    Some(Ok((client_color, host_username)))
                 }
                 _ => Some(Err(anyhow!("Got wrong response Packet"))),
             },
@@ -150,7 +132,10 @@ pub async fn check_for_connection_resp(
     }
 }
 
-pub async fn connect_to_host_loop(join_code: &str, username: &str) -> (PieceColor, String) {
+pub async fn connect_to_host_loop(
+    join_code: &str,
+    username: &str,
+) -> anyhow::Result<(PieceColor, String)> {
     let mut connection_tick = tokio::time::interval(Duration::from_millis(500));
     loop {
         let join_id = send_join_request(join_code, username).await;
@@ -162,11 +147,6 @@ pub async fn connect_to_host_loop(join_code: &str, username: &str) -> (PieceColo
             }
         }
     }
-}
-
-/// Gets the other users username
-pub fn get_other_username() -> String {
-    todo!()
 }
 
 /// Get the next game action from the other user.
