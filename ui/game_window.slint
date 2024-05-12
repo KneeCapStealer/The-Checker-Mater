@@ -1,12 +1,16 @@
 import { Board } from "board.slint";
 import { StartWindow } from "start_window.slint";
+import { LanPromptWindow } from "lan_prompt_window.slint";
 
 export enum WindowType {
     Start,
+    LanPrompt,
     Game,
 }
 
 export component GameWindow inherits Window {
+    default-font-size: 32px;
+
     preferred-width: 400px;
     preferred-height: 400px;
 
@@ -18,8 +22,14 @@ export component GameWindow inherits Window {
     callback exit <=> start-window.exit;
     callback join-game <=> start-window.join-game;
     callback host-game <=> start-window.host-game;
-    start_window := StartWindow {
+    start-window := StartWindow {
         visible: window-state == WindowType.Start;
+    }
+
+    out property <string> lan-code: lan-prompt-window.code;
+    callback join-prompt <=> lan-prompt-window.join;
+    lan-prompt-window := LanPromptWindow {
+        visible: window-state == WindowType.LanPrompt;
     }
 
     // Board property links

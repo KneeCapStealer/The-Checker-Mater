@@ -2,10 +2,10 @@ use std::process::exit;
 
 use slint::ComponentHandle;
 
-use the_checker_mater::game_data::GameData;
+use the_checker_mater::game::data::Context;
 
 fn main() -> Result<(), slint::PlatformError> {
-    let mut gamedata: GameData = GameData::new()?;
+    let mut gamedata = Context::new()?;
 
     let window = gamedata.get_window();
 

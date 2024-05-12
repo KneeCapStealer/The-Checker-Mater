@@ -1,0 +1,30 @@
+import { Button, VerticalBox, HorizontalBox } from "std-widgets.slint";
+export component LanPromptWindow {
+    out property <string> code: input.text;
+    callback join <=> button.clicked;
+    VerticalBox {
+        HorizontalBox {
+            Text {
+                text: "Join code:";
+            }
+
+            Rectangle {
+                z: -100;
+                background: grey;
+                preferred-width: 200px;
+                preferred-height: 20px;
+                input := TextInput {
+                    x: parent.width * 5%;
+                    accepted => {
+                        button.clicked();
+                    }
+                }
+            }
+        }
+
+        button := Button {
+            text: "Join";
+            preferred-height: 80px;
+        }
+    }
+}
