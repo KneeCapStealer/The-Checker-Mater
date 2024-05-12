@@ -124,6 +124,9 @@ pub fn check_for_connection_resp(
                     executor::block_on(set_session_id(resp.session_id));
                     Some(Ok((client_color, host_username)))
                 }
+                P2pResponsePacket::Error { kind } => {
+                    Some(Err(anyhow!("Got Error response: {:?}", kind)))
+                }
                 _ => Some(Err(anyhow!("Got wrong response Packet"))),
             },
             _ => Some(Err(anyhow!("Got request packet instead of response"))),
