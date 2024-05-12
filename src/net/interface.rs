@@ -5,7 +5,7 @@ use std::{
 };
 
 use anyhow::anyhow;
-use futures::{channel::mpsc::UnboundedSender, executor};
+use futures::executor;
 use tokio::sync::Mutex;
 
 use crate::net::{
