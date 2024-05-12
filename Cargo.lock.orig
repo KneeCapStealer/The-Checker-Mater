@@ -3733,11 +3733,15 @@ name = "the_checker_mater"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+<<<<<<< HEAD
+ "lazy_static",
+=======
  "futures",
  "hex",
  "lazy_static",
  "local-ip-address",
  "rand",
+>>>>>>> NetworkAssets
  "ron",
  "serde",
  "slint",
