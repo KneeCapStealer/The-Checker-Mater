@@ -46,6 +46,7 @@ impl ConnectionStatus {
 pub struct ConnectionData {
     status: ConnectionStatus,
     other_addr: Option<SocketAddr>,
+    other_username: Option<String>,
     join_code: Option<String>,
     session_id: u16,
 }
@@ -54,6 +55,7 @@ lazy_static! {
     static ref CONNECTION_DATA: Arc<Mutex<ConnectionData>> = Arc::new(Mutex::new(ConnectionData {
         status: ConnectionStatus::Disconnected,
         other_addr: None,
+        other_username: None,
         join_code: None,
         session_id: CONNECT_SESSION_ID,
     }));
@@ -63,8 +65,24 @@ pub async fn get_other_addr() -> Option<SocketAddr> {
     CONNECTION_DATA.lock().await.other_addr.clone()
 }
 
-pub async fn set_other_addr(addr: Option<SocketAddr>) {
-    CONNECTION_DATA.lock().await.other_addr = addr.clone()
+pub async fn set_other_addr(addr: SocketAddr) {
+    CONNECTION_DATA.lock().await.other_addr = Some(addr.clone())
+}
+
+pub async fn remove_other_addr() {
+    CONNECTION_DATA.lock().await.other_addr = None
+}
+
+pub async fn get_other_username() -> Option<String> {
+    CONNECTION_DATA.lock().await.other_username.clone()
+}
+
+pub async fn set_other_username(name: &str) {
+    CONNECTION_DATA.lock().await.other_username = Some(name.to_owned())
+}
+
+pub async fn remove_other_username() {
+    CONNECTION_DATA.lock().await.other_username = None
 }
 
 pub async fn get_connection_status() -> ConnectionStatus {
