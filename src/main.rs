@@ -13,29 +13,38 @@ async fn main() {
 
     match args[1].to_lowercase().as_str() {
         "host" => {
-            let join_code = interface::start_lan_host().await;
+            let join_code = interface::start_lan_host();
             println!("JOIN CODE:\n{}", join_code);
-            while !get_connection_status().await.is_connected() {}
 
-            sleep(Duration::from_secs(3));
+            loop {
+                if interface::get_connection_status_int().is_connected() {
+                    println!("Connected, so I'm breaking!!");
+                    break;
+                }
+                sleep(Duration::from_millis(50));
+            }
+
+            println!("Hello");
+
+            sleep(Duration::from_secs(1));
 
             interface::send_game_action(interface::GameAction::Surrender, |_| {
                 println!("Got resp!! (HELL YES!!)");
             });
 
-            sleep(Duration::from_secs(3));
+            sleep(Duration::from_secs(1));
 
             interface::send_game_action(interface::GameAction::Surrender, |_| {
                 println!("Got resp!! (HELL YES!!)");
             })
         }
         "join" => {
-            interface::start_lan_client().await;
+            interface::start_lan_client();
 
-            interface::connect_to_host_loop(&args[2], "CLIENT").await;
+            interface::connect_to_host_loop(&args[2], "CLIENT");
 
             loop {
-                if let Some(action) = get_next_game_action().await {
+                if let Some(action) = get_next_game_action() {
                     println!("Recieved action");
                     dbg!(&action);
                 }

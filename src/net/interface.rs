@@ -28,7 +28,7 @@ use super::{
         queue::{check_for_response, pop_incoming_gameaction},
         P2pResponse, P2pResponsePacket, PieceColor,
     },
-    status::set_join_code,
+    status::{get_connection_status, set_join_code},
 };
 
 /// An enum which holds the possible actions a user can make in the game.
@@ -51,16 +51,14 @@ impl GameAction {
 
 /// Start the host network peer on a LAN connection.
 /// Returns the join code for the client
-pub async fn start_lan_host() -> String {
-    let port = get_available_port().await.unwrap();
-    let socket = tokio::net::UdpSocket::bind(("0.0.0.0", port))
-        .await
-        .unwrap();
+pub fn start_lan_host() -> String {
+    let port = executor::block_on(get_available_port()).unwrap();
+    let socket = executor::block_on(tokio::net::UdpSocket::bind(("0.0.0.0", port))).unwrap();
 
     let local_ip = get_local_ip().unwrap();
 
     let encoded_ip = hex_encode_ip(SocketAddr::new(IpAddr::V4(local_ip), port)).unwrap();
-    set_join_code(&encoded_ip).await;
+    executor::block_on(set_join_code(&encoded_ip));
 
     host_network_loop(socket);
 
@@ -68,11 +66,9 @@ pub async fn start_lan_host() -> String {
 }
 
 /// Start the client network peer on a LAN connection.
-pub async fn start_lan_client() {
-    let port = get_available_port().await.unwrap();
-    let socket = tokio::net::UdpSocket::bind(("0.0.0.0", port))
-        .await
-        .unwrap();
+pub fn start_lan_client() {
+    let port = executor::block_on(get_available_port()).unwrap();
+    let socket = executor::block_on(tokio::net::UdpSocket::bind(("0.0.0.0", port))).unwrap();
 
     // Start client network loop, with 10 pings pr. second
     client_network_loop(socket, 10);
@@ -84,14 +80,14 @@ pub async fn start_lan_client() {
 ///
 /// ## Params
 /// * `join_code` - The join code sent by the host.
-pub async fn send_join_request(join_code: &str, username: &str) -> u16 {
-    set_join_code(join_code).await;
+pub fn send_join_request(join_code: &str, username: &str) -> u16 {
+    executor::block_on(set_join_code(join_code));
     let host_addr = hex_decode_ip(join_code).unwrap();
-    set_other_addr(Some(host_addr)).await;
+    executor::block_on(set_other_addr(Some(host_addr)));
 
     let join_request = P2pRequest::new(
         CONNECT_SESSION_ID,
-        new_transaction_id().await,
+        executor::block_on(new_transaction_id()),
         P2pRequestPacket::Connect {
             join_code: join_code.to_owned(),
             username: username.to_owned(),
@@ -99,26 +95,13 @@ pub async fn send_join_request(join_code: &str, username: &str) -> u16 {
     );
     println!("Asking to join Host at {:?}", host_addr);
 
-    set_connection_status(ConnectionStatus::PendingConnection).await;
+    executor::block_on(set_connection_status(ConnectionStatus::PendingConnection));
 
-    let id = push_outgoing_queue(P2pPacket::Request(join_request.clone()), None).await;
+    let id = executor::block_on(push_outgoing_queue(
+        P2pPacket::Request(join_request.clone()),
+        None,
+    ));
 
-    // if let Ok(resp) = tokio::time::timeout(Duration::from_millis(1000), wait_for_response(id)).await
-    // {
-    //     println!("GOT ANSWER!!!!");
-    //     dbg!(&resp);
-    //     if let P2pPacket::Response(resp) = resp {
-    //         println!("Got response");
-    //
-    //         println!("Setting connection to Connected!");
-    //         set_connection_status(ConnectionStatus::connected()).await;
-    //         println!("Connection sat to connected!!");
-    //
-    //         set_session_id(resp.session_id).await;
-    //
-    //         dbg!(&resp);
-    //     }
-    // }
     id
 }
 
@@ -128,19 +111,19 @@ pub async fn send_join_request(join_code: &str, username: &str) -> u16 {
 ///
 /// ## Params
 /// * `transaction_id` - The id of the join request
-pub async fn check_for_connection_resp(
+pub fn check_for_connection_resp(
     transaction_id: u16,
 ) -> Option<anyhow::Result<(PieceColor, String)>> {
-    match check_for_response(transaction_id).await {
+    match executor::block_on(check_for_response(transaction_id)) {
         Some(resp) => match resp {
             P2pPacket::Response(resp) => match resp.packet {
                 P2pResponsePacket::Connect {
                     client_color,
                     host_username,
                 } => {
-                    set_connection_status(ConnectionStatus::connected()).await;
-                    set_session_id(resp.session_id).await;
-                    return Some(Ok((client_color, host_username)));
+                    executor::block_on(set_connection_status(ConnectionStatus::connected()));
+                    executor::block_on(set_session_id(resp.session_id));
+                    Some(Ok((client_color, host_username)))
                 }
                 _ => Some(Err(anyhow!("Got wrong response Packet"))),
             },
@@ -150,14 +133,14 @@ pub async fn check_for_connection_resp(
     }
 }
 
-pub async fn connect_to_host_loop(join_code: &str, username: &str) {
+pub fn connect_to_host_loop(join_code: &str, username: &str) {
     let mut connection_tick = tokio::time::interval(Duration::from_millis(500));
     'outer: loop {
-        let join_id = send_join_request(join_code, username).await;
+        let join_id = send_join_request(join_code, username);
 
         for _ in 0..25 {
-            connection_tick.tick().await;
-            if let Some(resp) = check_for_connection_resp(join_id).await {
+            executor::block_on(connection_tick.tick());
+            if let Some(resp) = check_for_connection_resp(join_id) {
                 dbg!(&resp);
                 break 'outer;
             }
@@ -169,10 +152,14 @@ pub async fn connect_to_host_loop(join_code: &str, username: &str) {
 pub fn get_other_username() -> String {
     todo!()
 }
+/// INTERFACE
+pub fn get_connection_status_int() -> ConnectionStatus {
+    executor::block_on(get_connection_status())
+}
 
 /// Get the next game action from the other user.
-pub async fn get_next_game_action() -> Option<GameAction> {
-    pop_incoming_gameaction().await
+pub fn get_next_game_action() -> Option<GameAction> {
+    executor::block_on(pop_incoming_gameaction())
 }
 
 /// Send a game action to the other user.
@@ -200,6 +187,7 @@ pub fn send_game_action<F>(action: GameAction, mut on_response: F)
 where
     F: FnMut(anyhow::Result<()>) + Send + Sync + 'static,
 {
+    println!("Hello from SendGameAction");
     let closure = Arc::new(Mutex::new(move |resp: P2pResponse| {
         if let P2pResponsePacket::Error { kind: _ } = resp.packet {
             on_response(Err(anyhow::anyhow!("Recieved error")));
