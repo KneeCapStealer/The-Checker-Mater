@@ -9,12 +9,11 @@ use futures::executor;
 use tokio::sync::Mutex;
 
 use crate::{
-    game::PieceColor,
+    game::{GameAction, PieceColor},
     net::{
         net_utils::{get_available_port, get_local_ip, hex_decode_ip, hex_encode_ip},
         p2p::{
-            net_loop::client_network_loop,
-            net_loop::host_network_loop,
+            net_loop::{client_network_loop, host_network_loop},
             queue::{
                 check_for_response, new_transaction_id, pop_incoming_gameaction,
                 push_outgoing_queue,
@@ -24,24 +23,6 @@ use crate::{
         status,
     },
 };
-
-/// An enum which holds the possible actions a user can make in the game.
-#[derive(Clone, Copy, Debug)]
-pub enum GameAction {
-    /// Move a piece, by its current position, and its target position.
-    /// It is not guarenteed that this move is valid yet, so it should be validated before use.
-    MovePiece { to: usize, from: usize },
-    /// Indicates that the player wants to end the game by surrender
-    Surrender,
-}
-impl GameAction {
-    /// Creates a `GameAction::MovePiece`.
-    /// * `from` - The start location of the piece.
-    /// * `to` - The end location of the piece.
-    pub fn move_piece(from: usize, to: usize) -> Self {
-        Self::MovePiece { to, from }
-    }
-}
 
 /// Start the host network peer on a LAN connection.
 /// Returns the join code for the client

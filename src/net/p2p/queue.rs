@@ -6,7 +6,7 @@ use std::{
 use lazy_static::lazy_static;
 use tokio::sync::Mutex;
 
-use crate::net::interface::GameAction;
+use crate::game::GameAction;
 
 use super::{P2pPacket, P2pResponse};
 

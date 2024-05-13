@@ -4,12 +4,9 @@ pub mod queue;
 
 use anyhow::anyhow;
 
-use super::{
-    interface::GameAction,
-    net_utils::{FromPacket, PacketError, ToByte, ToPacket},
-};
+use super::net_utils::{FromPacket, PacketError, ToByte, ToPacket};
 
-use crate::game::{PieceColor, PieceData};
+use crate::game::{GameAction, PieceColor, PieceData};
 
 #[derive(Clone, Debug)]
 pub enum P2pPacket {
@@ -457,11 +454,11 @@ impl ToPacket for GameAction {
     fn to_packet(&self) -> Vec<u8> {
         let mut bytes = vec![];
         match self {
-            Self::MovePiece { to, from } => {
+            Self::MovePiece(move_action) => {
                 bytes.append(&mut self.to_u8().to_be_bytes().to_vec()); // Packet type code
 
-                bytes.append(&mut (*to as u8).to_be_bytes().to_vec());
-                bytes.append(&mut (*from as u8).to_be_bytes().to_vec());
+                bytes.append(&mut (move_action.start as u8).to_be_bytes().to_vec());
+                bytes.append(&mut (move_action.end as u8).to_be_bytes().to_vec());
             }
             Self::Surrender => {
                 bytes.append(&mut self.to_u8().to_be_bytes().to_vec()); // Packet type code
@@ -483,7 +480,7 @@ impl FromPacket for GameAction {
                 let to = packet[1] as usize;
                 let from = packet[2] as usize;
 
-                Ok(Self::move_piece(to, from))
+                Ok(Self::move_piece(from, to, None))
             }
             1 => {
                 if packet.len() != 1 {
@@ -500,7 +497,7 @@ impl FromPacket for GameAction {
 impl ToByte for GameAction {
     fn to_u8(&self) -> u8 {
         match self {
-            Self::MovePiece { to: _, from: _ } => 0,
+            Self::MovePiece(_) => 0,
             Self::Surrender => 1,
         }
     }

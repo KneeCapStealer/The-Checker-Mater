@@ -3,18 +3,21 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::net::{
-    interface::GameAction,
-    p2p::{
-        communicate::{recieve_p2p_packet, send_p2p_packet},
-        queue::{self, get_incoming_gameaction_len, push_incoming_gameaction},
-        P2pError, P2pPacket, P2pRequest, P2pRequestPacket, P2pResponse, P2pResponsePacket,
-        PieceColor,
-    },
-    status::{
-        get_connection_status, get_join_code, get_other_addr, get_session_id, remove_other_addr,
-        remove_other_username, set_connection_ping, set_connection_status, set_other_addr,
-        set_reconnect_tries, set_session_id, ConnectionStatus, CONNECT_SESSION_ID,
+use crate::{
+    game::GameAction,
+    net::{
+        p2p::{
+            communicate::{recieve_p2p_packet, send_p2p_packet},
+            queue::{self, get_incoming_gameaction_len, push_incoming_gameaction},
+            P2pError, P2pPacket, P2pRequest, P2pRequestPacket, P2pResponse, P2pResponsePacket,
+            PieceColor,
+        },
+        status::{
+            get_connection_status, get_join_code, get_other_addr, get_session_id,
+            remove_other_addr, remove_other_username, set_connection_ping, set_connection_status,
+            set_other_addr, set_reconnect_tries, set_session_id, ConnectionStatus,
+            CONNECT_SESSION_ID,
+        },
     },
 };
 
@@ -125,7 +128,7 @@ pub fn host_network_loop(socket: tokio::net::UdpSocket) {
                                         push_incoming_gameaction(action).await;
                                         P2pResponsePacket::Acknowledge
                                     }
-                                    GameAction::MovePiece { to: _, from: _ } => {
+                                    GameAction::MovePiece(_) => {
                                         // TODO: Verify move
                                         push_incoming_gameaction(action).await;
                                         P2pResponsePacket::Acknowledge
@@ -280,7 +283,7 @@ pub fn client_network_loop(socket: tokio::net::UdpSocket, pings: usize) {
                                         );
                                         P2pResponsePacket::Acknowledge
                                     }
-                                    GameAction::MovePiece { to: _, from: _ } => {
+                                    GameAction::MovePiece(_) => {
                                         // TODO: Verify move
                                         push_incoming_gameaction(action).await;
                                         println!(

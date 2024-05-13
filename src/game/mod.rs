@@ -23,6 +23,25 @@ impl PieceData {
     }
 }
 
+/// An enum which holds the possible actions a user can make in the game.
+#[derive(Clone, Copy, Debug)]
+pub enum GameAction {
+    /// Move a piece, by its current position, and its target position.
+    /// It is not guarenteed that this move is valid yet, so it should be validated before use.
+    MovePiece(Move),
+    /// Indicates that the player wants to end the game by surrender
+    Surrender,
+}
+impl GameAction {
+    /// Creates a `GameAction::MovePiece`.
+    /// * `start` - The start location of the piece.
+    /// * `end` - The end location of the piece.
+    /// * `captured` - If the move has captured a piece, this holds the index of that piece.
+    pub fn move_piece(start: usize, end: usize, captured: Option<usize>) -> Self {
+        Self::MovePiece(Move::new(start, end, captured))
+    }
+}
+
 /// Struct defining what pieces are moved
 /// and an optional captured piece
 #[derive(Clone, Copy, Debug)]
@@ -30,6 +49,16 @@ pub struct Move {
     pub start: usize,
     pub end: usize,
     pub captured: Option<usize>,
+}
+impl Move {
+    /// Creates a new instance of `Move`.
+    pub fn new(start: usize, end: usize, captured: Option<usize>) -> Self {
+        Self {
+            start,
+            end,
+            captured,
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
