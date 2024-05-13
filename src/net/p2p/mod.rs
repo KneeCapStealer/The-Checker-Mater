@@ -459,6 +459,10 @@ impl ToPacket for GameAction {
 
                 bytes.append(&mut (move_action.start as u8).to_be_bytes().to_vec());
                 bytes.append(&mut (move_action.end as u8).to_be_bytes().to_vec());
+
+                if let Some(captured) = move_action.captured {
+                    bytes.append(&mut (captured as u8).to_be_bytes().to_vec());
+                }
             }
             Self::Surrender => {
                 bytes.append(&mut self.to_u8().to_be_bytes().to_vec()); // Packet type code
@@ -474,13 +478,18 @@ impl FromPacket for GameAction {
         }
         match packet[0] {
             0 => {
-                if packet.len() != 3 {
-                    return Err(PacketError::invalid_length(3, packet.len()).into());
+                if packet.len() < 3 {
+                    return Err(PacketError::invalid_length(4, packet.len()).into());
                 }
                 let to = packet[1] as usize;
                 let from = packet[2] as usize;
 
-                Ok(Self::move_piece(from, to, None))
+                let mut captured: Option<usize> = None;
+                if packet.len() > 3 {
+                    captured = Some(packet[3] as usize);
+                }
+
+                Ok(Self::move_piece(from, to, captured))
             }
             1 => {
                 if packet.len() != 1 {
