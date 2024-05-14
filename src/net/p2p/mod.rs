@@ -6,13 +6,14 @@ use anyhow::anyhow;
 
 use super::net_utils::{FromPacket, PacketError, ToByte, ToPacket};
 
-use crate::game::{GameAction, PieceColor, PieceData};
+use crate::game::{GameAction, PieceColor, PieceData, Move};
 
 #[derive(Clone, Debug)]
 pub enum P2pPacket {
     Request(P2pRequest),
     Response(P2pResponse),
 }
+
 impl P2pPacket {
     pub fn is_request(&self) -> bool {
         match self {
@@ -27,6 +28,7 @@ impl P2pPacket {
         }
     }
 }
+
 impl ToPacket for P2pPacket {
     fn to_packet(&self) -> Vec<u8> {
         match self {
@@ -35,6 +37,7 @@ impl ToPacket for P2pPacket {
         }
     }
 }
+
 impl FromPacket for P2pPacket {
     fn from_packet(packet: Vec<u8>) -> anyhow::Result<Self> {
         match packet[0] {
@@ -63,6 +66,7 @@ pub struct P2pRequest {
     /// The main packet of the request.
     pub packet: P2pRequestPacket,
 }
+
 impl P2pRequest {
     /// Create a new `P2pRequest` from the sessions ID and the packet.
     pub fn new(session_id: u16, transaction_id: u16, packet: P2pRequestPacket) -> Self {
@@ -73,6 +77,7 @@ impl P2pRequest {
         }
     }
 }
+
 impl ToPacket for P2pRequest {
     fn to_packet(&self) -> Vec<u8> {
         let mut bytes = vec![];
@@ -84,6 +89,7 @@ impl ToPacket for P2pRequest {
         bytes
     }
 }
+
 impl FromPacket for P2pRequest {
     fn from_packet(packet: Vec<u8>) -> anyhow::Result<Self> {
         if packet.len() < 6 {
@@ -124,6 +130,7 @@ pub enum P2pRequestPacket {
     /// Perform a game action
     GameAction { action: GameAction },
 }
+
 impl P2pRequestPacket {
     /// Request to connect to the host. `join_code` is the HEX encoded IP and port of the host,
     /// which is the same as the join code if working over LAN. 'username' is the username the
@@ -139,6 +146,7 @@ impl P2pRequestPacket {
         Self::GameAction { action }
     }
 }
+
 impl ToPacket for P2pRequestPacket {
     fn to_packet(&self) -> Vec<u8> {
         let mut bytes = vec![];
@@ -167,6 +175,7 @@ impl ToPacket for P2pRequestPacket {
         bytes
     }
 }
+
 impl FromPacket for P2pRequestPacket {
     fn from_packet(packet: Vec<u8>) -> anyhow::Result<Self> {
         if packet.len() == 0 {
@@ -221,6 +230,7 @@ impl FromPacket for P2pRequestPacket {
         }
     }
 }
+
 impl ToByte for P2pRequestPacket {
     fn to_u8(&self) -> u8 {
         match self {
@@ -245,6 +255,7 @@ pub struct P2pResponse {
     /// The main packet of the response.
     pub packet: P2pResponsePacket,
 }
+
 impl P2pResponse {
     /// Create a new `P2pResponse` from the sessions ID and the packet.
     pub fn new(session_id: u16, transaction_id: u16, packet: P2pResponsePacket) -> Self {
@@ -255,6 +266,7 @@ impl P2pResponse {
         }
     }
 }
+
 impl ToPacket for P2pResponse {
     fn to_packet(&self) -> Vec<u8> {
         let mut bytes = vec![];
@@ -265,6 +277,7 @@ impl ToPacket for P2pResponse {
         bytes
     }
 }
+
 impl FromPacket for P2pResponse {
     fn from_packet(packet: Vec<u8>) -> anyhow::Result<Self> {
         if packet.len() < 6 {
@@ -312,6 +325,7 @@ pub enum P2pResponsePacket {
     /// A simple acknowledge.
     Acknowledge,
 }
+
 impl P2pResponsePacket {
     /// The packet for if an error has occured.
     pub fn error(kind: P2pError) -> Self {
@@ -329,6 +343,7 @@ impl P2pResponsePacket {
         Self::Resync { board }
     }
 }
+
 impl ToPacket for P2pResponsePacket {
     fn to_packet(&self) -> Vec<u8> {
         let mut bytes = vec![];
@@ -365,17 +380,20 @@ impl ToPacket for P2pResponsePacket {
         bytes
     }
 }
+
 impl FromPacket for P2pResponsePacket {
     fn from_packet(packet: Vec<u8>) -> anyhow::Result<Self> {
         if packet.len() == 0 {
             return Err(PacketError::Empty.into());
         }
+
         match packet[0] {
             // Error
             0 => {
                 if packet.len() != 2 {
                     return Err(PacketError::invalid_length(2, packet.len()).into());
                 }
+
                 let kind = match P2pError::try_from(packet[1]) {
                     Ok(kind) => kind,
                     Err(e) => {
@@ -418,6 +436,7 @@ impl FromPacket for P2pResponsePacket {
                 if packet.len() < 65 {
                     return Err(PacketError::invalid_length(65, packet.len()).into());
                 }
+
                 let mut board = vec![];
                 for byte in packet[1..].to_vec() {
                     match PieceData::try_from(byte) {
@@ -436,6 +455,7 @@ impl FromPacket for P2pResponsePacket {
         }
     }
 }
+
 impl ToByte for P2pResponsePacket {
     fn to_u8(&self) -> u8 {
         match self {
@@ -450,52 +470,61 @@ impl ToByte for P2pResponsePacket {
         }
     }
 }
+
 impl ToPacket for GameAction {
     fn to_packet(&self) -> Vec<u8> {
-        let mut bytes = vec![];
+        let mut bytes = self.to_u8().to_be_bytes().to_vec();
         match self {
             Self::MovePiece(move_action) => {
-                bytes.append(&mut self.to_u8().to_be_bytes().to_vec()); // Packet type code
+                bytes.push(move_action.index as u8);
+                bytes.push(move_action.end as u8);
 
-                bytes.append(&mut (move_action.start as u8).to_be_bytes().to_vec());
-                bytes.append(&mut (move_action.end as u8).to_be_bytes().to_vec());
-
-                if let Some(captured) = move_action.captured {
-                    bytes.append(&mut (captured as u8).to_be_bytes().to_vec());
+                if let Some(captured) = &move_action.captured {
+                    for piece in captured {
+                        bytes.push(*piece as u8);
+                    }
                 }
             }
-            Self::Surrender => {
-                bytes.append(&mut self.to_u8().to_be_bytes().to_vec()); // Packet type code
-            }
+            _ => {}
         }
         bytes
     }
 }
+
 impl FromPacket for GameAction {
     fn from_packet(packet: Vec<u8>) -> anyhow::Result<Self> {
         if packet.len() == 0 {
             return Err(PacketError::invalid_length(1, 0).into());
         }
-        match packet[0] {
-            0 => {
+        match Self::from(packet[0]) {
+            Self::MovePiece(_) => {
                 if packet.len() < 3 {
                     return Err(PacketError::invalid_length(4, packet.len()).into());
                 }
                 let to = packet[1] as usize;
                 let from = packet[2] as usize;
 
-                let mut captured: Option<usize> = None;
+                let mut captured: Option<Vec<usize>> = None;
                 if packet.len() > 3 {
-                    captured = Some(packet[3] as usize);
+                    captured = Some(vec![]);
+                    for i in 3..packet.len() {
+                        unsafe {captured.as_mut().unwrap_unchecked().push(packet[i] as usize)}
+                    }
                 }
 
                 Ok(Self::move_piece(from, to, captured))
             }
-            1 => {
+            Self::Surrender => {
                 if packet.len() != 1 {
                     return Err(PacketError::invalid_length(1, packet.len()).into());
                 }
                 Ok(Self::Surrender)
+            }
+            Self::Stalemate => {
+                if packet.len() != 1 {
+                    return Err(PacketError::invalid_length(1, packet.len()).into());
+                }
+                Ok(Self::Stalemate)
             }
             _ => Err(
                 PacketError::data_error(&format!("Not valid packet type: {}", packet[0])).into(),
@@ -503,11 +532,32 @@ impl FromPacket for GameAction {
         }
     }
 }
+
+impl From<u8> for GameAction {
+    fn from(value: u8) -> Self {
+        match value {
+            0 => {
+                Self::MovePiece(Move {index: 0, end: 0, captured: None})
+            }
+            1 => {
+                Self::Stalemate
+            }
+            2 => {
+                Self::Surrender
+            }
+            _ => {
+                panic!("Not valid Gameaction value in 'From' cast")
+            }
+        }
+    }
+}
+
 impl ToByte for GameAction {
     fn to_u8(&self) -> u8 {
         match self {
             Self::MovePiece(_) => 0,
-            Self::Surrender => 1,
+            Self::Stalemate => 1,
+            Self::Surrender => 2,
         }
     }
 }
@@ -529,6 +579,7 @@ pub enum P2pError {
     /// send a `P2pRequest::Connect` to the client.
     WrongDirection,
 }
+
 impl ToByte for P2pError {
     fn to_u8(&self) -> u8 {
         match self {
@@ -540,6 +591,7 @@ impl ToByte for P2pError {
         }
     }
 }
+
 impl TryFrom<u8> for P2pError {
     type Error = anyhow::Error;
     fn try_from(value: u8) -> Result<Self, Self::Error> {
@@ -566,6 +618,7 @@ impl ToByte for PieceColor {
         }
     }
 }
+
 impl TryFrom<u8> for PieceColor {
     type Error = anyhow::Error;
     fn try_from(value: u8) -> Result<Self, Self::Error> {
@@ -604,6 +657,7 @@ impl ToByte for PieceData {
         byte
     }
 }
+
 impl TryFrom<u8> for PieceData {
     type Error = anyhow::Error;
     fn try_from(value: u8) -> Result<Self, Self::Error> {
