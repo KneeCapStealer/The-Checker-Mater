@@ -75,24 +75,26 @@ impl Board {
 
     /// Takes a `Move` struct and performs the move described within
     pub fn move_piece(&mut self, mov: Move) {
-        let mut start_data = self.pieces.row_data(mov.start).unwrap();
+        let mut start_data = self.pieces.row_data(mov.index).unwrap();
 
         // Promotion to king
-        if self.piece_is_player(mov.start) && mov.end < 4 {
+        if self.piece_is_player(mov.index) && mov.end < 4 {
             start_data.is_king = true;
         }
 
-        if self.piece_is_enemy(mov.start) && mov.end >= 32 - 4 {
+        if self.piece_is_enemy(mov.index) && mov.end >= 32 - 4 {
             start_data.is_king = true;
         }
 
         self.pieces.set_row_data(mov.end, start_data);
         self.pieces
-            .set_row_data(mov.start, PieceData::const_default());
+            .set_row_data(mov.index, PieceData::const_default());
 
         if let Some(captured) = mov.captured {
-            self.pieces
-                .set_row_data(captured, PieceData::const_default())
+            for piece in captured {
+                self.pieces
+                    .set_row_data(piece, PieceData::const_default())
+            }
         }
     }
 
@@ -223,14 +225,11 @@ impl Board {
             // If we are taking a piece, since the next tile is empty
             // We return the available move to take the piece
             if is_taking {
-                return Some((
-                    vec![Move {
-                        start,
-                        end: next as usize,
-                        captured: Some(index),
-                    }],
-                    true,
-                ));
+                return Some((vec![Move {
+                    index: start,
+                    end: next as usize,
+                    captured: Some(vec![index]),
+                }], false))
             }
 
             // If we aren't taking a piece, and this tile is piece is empty
@@ -256,7 +255,7 @@ impl Board {
 
             if !is_taking {
                 moves.push(Move {
-                    start,
+                    index: start,
                     end: next as usize,
                     captured: None,
                 });
@@ -314,10 +313,13 @@ impl Board {
                     return Some((moves, is_taking));
                 }
                 // Remove all non-capturing moves
-                moves = moves
-                    .iter()
-                    .filter_map(|mov| mov.captured.map(|_| *mov))
-                    .collect();
+                    moves = moves
+                        .iter()
+                        .filter_map(|mov| match &mov.captured {
+                            Some(_) => Some(mov.clone()),
+                            None => None
+                        })
+                        .collect();
                 Some((moves, is_taking))
             }
             None => None,
@@ -349,7 +351,10 @@ impl Board {
                 Some(
                     moves
                         .iter()
-                        .filter_map(|mov| mov.captured.map(|_| *mov))
+                        .filter_map(|mov| match &mov.captured {
+                            Some(_) => Some(mov.clone()),
+                            None => None
+                        })
                         .collect(),
                 )
             }

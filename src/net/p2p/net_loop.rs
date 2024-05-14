@@ -128,6 +128,11 @@ pub fn host_network_loop(socket: tokio::net::UdpSocket) {
                                         push_incoming_gameaction(action).await;
                                         P2pResponsePacket::Acknowledge
                                     }
+                                    GameAction::Stalemate=> {
+                                        // TODO: Verify Stalemate
+                                        push_incoming_gameaction(action).await;
+                                        P2pResponsePacket::Acknowledge
+                                    }
                                     GameAction::MovePiece(_) => {
                                         // TODO: Verify move
                                         push_incoming_gameaction(action).await;
@@ -276,6 +281,15 @@ pub fn client_network_loop(socket: tokio::net::UdpSocket, pings: usize) {
                                 match action {
                                     GameAction::Surrender => {
                                         // TODO: Verify Surrender
+                                        push_incoming_gameaction(action).await;
+                                        println!(
+                                            "Incoming action len: {}",
+                                            get_incoming_gameaction_len().await
+                                        );
+                                        P2pResponsePacket::Acknowledge
+                                    }
+                                    GameAction::Stalemate => {
+                                        // TODO: Verify stalemate
                                         push_incoming_gameaction(action).await;
                                         println!(
                                             "Incoming action len: {}",
