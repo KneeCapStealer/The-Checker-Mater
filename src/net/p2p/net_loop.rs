@@ -259,11 +259,8 @@ pub fn client_network_loop(socket: tokio::net::UdpSocket, pings: usize) {
                 .await;
 
                 let (incoming_packet, addr) = match timeout_result {
-                    Ok(packet_result) => match packet_result {
-                        Ok(packet) => packet,
-                        Err(_) => continue,
-                    },
-                    Err(_) => continue,
+                    Ok(Ok(packet)) => packet,
+                    _ => continue,
                 };
                 if addr != get_other_addr().await.unwrap() {
                     continue;
