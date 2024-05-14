@@ -92,8 +92,7 @@ impl Board {
 
         if let Some(captured) = mov.captured {
             for piece in captured {
-                self.pieces
-                    .set_row_data(piece, PieceData::const_default())
+                self.pieces.set_row_data(piece, PieceData::const_default())
             }
         }
     }
@@ -177,15 +176,40 @@ impl Board {
             return None;
         }
 
+        #[allow(clippy::too_many_arguments)]
         fn check_move(
             tiles: Rc<slint::VecModel<PieceData>>,
             start: usize,
             index: usize,
+            local_player_color: PieceColor,
             enemy_color: PieceColor,
             is_king: bool,
             direction: &Direction,
             is_taking: bool,
         ) -> Option<(Vec<Move>, bool)> {
+            // Check if the piece is on the edge of the direction
+            let row_left_shifted = index % 8 < 4;
+            let piece_left_side = index % 4 == 0;
+            let peice_right_side = index % 4 == 3;
+            if row_left_shifted && direction.is_left() && piece_left_side {
+                return None;
+            }
+
+            if !row_left_shifted && direction.is_right() && peice_right_side {
+                return None;
+            }
+
+            // If the piece isn't a king it cant move backwards
+            if !is_king {
+                if direction.is_down() && local_player_color != enemy_color {
+                    return None;
+                }
+
+                if direction.is_up() && local_player_color == enemy_color {
+                    return None;
+                }
+            }
+
             let next = index as i32 + direction.get_value(index);
             if next < 0 || next > tiles.row_count() as i32 {
                 return None;
@@ -203,6 +227,7 @@ impl Board {
                     tiles,
                     start,
                     next as usize,
+                    local_player_color,
                     enemy_color,
                     is_king,
                     direction,
@@ -225,11 +250,14 @@ impl Board {
             // If we are taking a piece, since the next tile is empty
             // We return the available move to take the piece
             if is_taking {
-                return Some((vec![Move {
-                    index: start,
-                    end: next as usize,
-                    captured: Some(vec![index]),
-                }], false))
+                return Some((
+                    vec![Move {
+                        index: start,
+                        end: next as usize,
+                        captured: Some(vec![index]),
+                    }],
+                    false,
+                ));
             }
 
             // If we aren't taking a piece, and this tile is piece is empty
@@ -243,6 +271,7 @@ impl Board {
                     tiles,
                     start,
                     next as usize,
+                    local_player_color,
                     enemy_color,
                     is_king,
                     direction,
@@ -269,61 +298,43 @@ impl Board {
         let mut moves: Option<Vec<Move>> = None;
         let mut is_taking = false;
         for direction in Direction::values() {
-            // Check if the piece is on the edge of the direction
-            if index % 8 < 4 && direction.is_left() && index % 4 == 0 {
-                continue;
-            }
-
-            if index % 8 > 4 && direction.is_right() && index % 4 == 3 {
-                continue;
-            }
-
-            // If the piece isn't a king it cant move backwards
-            if !piece.is_king {
-                if direction.is_down() && self.piece_is_player(index) {
-                    continue;
-                }
-
-                if direction.is_up() && self.piece_is_enemy(index) {
-                    continue;
-                }
-            }
-
             // Since the direction is valid, run the check move algorithm
-            if let Some(mut next_moves) = check_move(
+            let next_moves = check_move(
                 self.pieces.clone(),
                 index,
                 index,
+                self.player_color,
                 piece.color.get_opposite(),
                 piece.is_king,
                 direction,
                 false,
-            ) {
-                is_taking |= next_moves.1;
+            );
 
-                if next_moves.1 == is_taking {
-                    moves.get_or_insert(vec![]).append(&mut next_moves.0);
-                }
+            if let None = next_moves {
+                continue;
+            }
+
+            let mut next_moves = unsafe { next_moves.unwrap_unchecked() };
+
+            is_taking |= next_moves.1;
+
+            if next_moves.1 == is_taking {
+                moves.get_or_insert(vec![]).append(&mut next_moves.0);
             }
         }
 
-        match moves {
-            Some(mut moves) => {
-                if !is_taking {
-                    return Some((moves, is_taking));
-                }
-                // Remove all non-capturing moves
-                    moves = moves
-                        .iter()
-                        .filter_map(|mov| match &mov.captured {
-                            Some(_) => Some(mov.clone()),
-                            None => None
-                        })
-                        .collect();
-                Some((moves, is_taking))
+        moves.map(|moves| {
+            if !is_taking {
+                return (moves, is_taking);
             }
-            None => None,
-        }
+            // Remove all non-capturing moves
+            let filtered: Vec<Move> = moves
+                .iter()
+                .filter_map(|mov| mov.captured.as_ref().map(|_| mov.clone()))
+                .collect();
+
+            (filtered, is_taking)
+        })
     }
 
     /// Returns all legal moves for the `player_color`
@@ -342,23 +353,15 @@ impl Board {
                 }
             }
         }
-        match moves {
-            Some(moves) => {
-                if !is_taking {
-                    return Some(moves);
-                }
-
-                Some(
-                    moves
-                        .iter()
-                        .filter_map(|mov| match &mov.captured {
-                            Some(_) => Some(mov.clone()),
-                            None => None
-                        })
-                        .collect(),
-                )
+        moves.map(|moves| {
+            if !is_taking {
+                return moves;
             }
-            None => None,
-        }
+
+            moves
+                .iter()
+                .filter_map(|mov| mov.captured.as_ref().map(|_| mov.clone()))
+                .collect()
+        })
     }
 }
