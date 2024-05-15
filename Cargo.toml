@@ -18,7 +18,8 @@ thiserror = "1.0.59"                                    # Custom errors
 rand = "0.8.5"                                          # Random numbers (For transaction- & Session ID)
 lazy_static = "1.4.0"                                   # For static variables without a const init
 futures = "0.3.30"                                      # For blocking a thread until an async func is done
-arboard = "3.4.0"
+arboard = "3.4.0"                                       # Clipboard
+chrono = "0.4.38"                                       # Time
 
 
 [build-dependencies]
