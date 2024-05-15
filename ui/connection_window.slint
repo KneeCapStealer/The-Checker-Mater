@@ -1,0 +1,16 @@
+
+import { VerticalBox, TextEdit } from "std-widgets.slint";
+export component ConnectionWindow {
+    in property <bool> is-host;
+    in property <string> join-code: "[NOT VALID JOIN]";
+
+    VerticalBox {
+        Text {
+            text: "WATING FOR CONNECTION TO " + (is-host ? "CLIENT" : "HOST");
+        }
+        TextEdit {
+            text: "Join code: " + join-code;
+            read-only: true;
+        }
+    }
+}

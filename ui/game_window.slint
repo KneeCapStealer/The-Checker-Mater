@@ -1,10 +1,12 @@
 import { Board } from "board.slint";
 import { StartWindow } from "start_window.slint";
 import { LanPromptWindow } from "lan_prompt_window.slint";
+import { ConnectionWindow } from "connection_window.slint";
 
 export enum WindowType {
     Start,
     LanPrompt,
+    Connecting,
     Game,
 }
 
@@ -19,6 +21,9 @@ export component GameWindow inherits Window {
 
     in property <WindowType> window-state: WindowType.Start;
 
+    in property <bool> is-host <=> connecting-window.is-host;
+    in property <string> join-code <=> connecting-window.join-code;
+
     callback exit <=> start-window.exit;
     callback join-game <=> start-window.join-game;
     callback host-game <=> start-window.host-game;
@@ -30,6 +35,10 @@ export component GameWindow inherits Window {
     callback join-prompt <=> lan-prompt-window.join;
     lan-prompt-window := LanPromptWindow {
         visible: window-state == WindowType.LanPrompt;
+    }
+
+    connecting-window := ConnectionWindow {
+       visible: window-state == WindowType.Connecting; 
     }
 
     // Board property links
