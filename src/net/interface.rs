@@ -15,8 +15,8 @@ use crate::{
         p2p::{
             net_loop::{client_network_loop, host_network_loop},
             queue::{
-                check_for_response, new_transaction_id, pop_incoming_gameaction,
-                push_outgoing_queue,
+                check_for_response, get_outgoing_queue_len, new_transaction_id,
+                pop_incoming_gameaction, push_outgoing_queue,
             },
             P2pPacket, P2pRequest, P2pRequestPacket, P2pResponse, P2pResponsePacket,
         },
@@ -75,6 +75,8 @@ pub fn send_join_request(join_code: &str, username: &str) -> u16 {
         status::ConnectionStatus::PendingConnection,
     ));
 
+    println!("Pushing to queue");
+
     executor::block_on(push_outgoing_queue(
         P2pPacket::Request(join_request.clone()),
         None,
@@ -125,9 +127,11 @@ pub fn connect_to_host_loop(
     join_code: &str,
     username: &str,
 ) -> anyhow::Result<(PieceColor, String)> {
+    println!("Starting to connect...");
     let mut connection_tick = tokio::time::interval(Duration::from_millis(500));
     loop {
         let join_id = send_join_request(join_code, username);
+        println!("Request sebt");
 
         for _ in 0..25 {
             executor::block_on(connection_tick.tick());

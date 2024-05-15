@@ -19,10 +19,10 @@ export component GameWindow inherits Window {
     min-width: board.width;
     min-height: board.height;
 
-    in property <WindowType> window-state: WindowType.Start;
+    in-out property <WindowType> window-state: WindowType.Start;
 
-    in property <bool> is-host <=> connecting-window.is-host;
-    in property <string> join-code <=> connecting-window.join-code;
+    in-out property <bool> is-host <=> connecting-window.is-host;
+    in-out property <string> join-code <=> connecting-window.join-code;
 
     callback exit <=> start-window.exit;
     callback join-game <=> start-window.join-game;
@@ -39,6 +39,10 @@ export component GameWindow inherits Window {
 
     connecting-window := ConnectionWindow {
        visible: window-state == WindowType.Connecting; 
+    }
+
+    public function load-game-window() {
+        window-state = WindowType.Game;
     }
 
     // Board property links

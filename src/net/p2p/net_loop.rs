@@ -36,6 +36,7 @@ pub fn host_network_loop(socket: tokio::net::UdpSocket) {
     let socket = Arc::new(socket);
     // Handle outgoing queue
     tokio::spawn({
+        println!("Starting Host Handle outgoing queue");
         let new_sock = socket.clone();
         async move {
             loop {
@@ -43,7 +44,8 @@ pub fn host_network_loop(socket: tokio::net::UdpSocket) {
                     Some(addr) => addr,
                     None => continue,
                 };
-                if let Some((data, _id)) = queue::pop_outgoing_queue().await {
+                if let Some((data, id)) = queue::pop_outgoing_queue().await {
+                    println!("Sending Packet with ID {}... ({:?})", id, data);
                     send_p2p_packet(&new_sock, data, client_addr).await.unwrap();
                 }
             }
@@ -51,6 +53,7 @@ pub fn host_network_loop(socket: tokio::net::UdpSocket) {
     });
     // Handle incoming responses
     tokio::spawn({
+        println!("Starting Host handle incoming responses");
         let new_sock = socket.clone();
         async move {
             let mut time_since_ping = Instant::now();
@@ -165,6 +168,7 @@ pub fn client_network_loop(socket: tokio::net::UdpSocket, pings: usize) {
     let socket = Arc::new(socket);
     // Ping host
     tokio::spawn({
+        println!("Starting Client Ping Host");
         let mut interval = tokio::time::interval(Duration::from_millis((1000 / pings) as u64));
         async move {
             loop {
@@ -231,6 +235,7 @@ pub fn client_network_loop(socket: tokio::net::UdpSocket, pings: usize) {
     });
     // Handle outgoing queue
     tokio::spawn({
+        println!("Starting Client Handle outgoing queue");
         let new_sock = socket.clone();
         async move {
             loop {
@@ -238,8 +243,8 @@ pub fn client_network_loop(socket: tokio::net::UdpSocket, pings: usize) {
                     Some(addr) => addr,
                     None => continue,
                 };
-                if let Some((data, _id)) = queue::pop_outgoing_queue().await {
-                    // println!("Sending Packet with ID {}... ({:?})", id, data);
+                if let Some((data, id)) = queue::pop_outgoing_queue().await {
+                    println!("Sending Packet with ID {}... ({:?})", id, data);
                     send_p2p_packet(&new_sock, data, client_addr).await.unwrap();
                 }
             }
@@ -247,6 +252,7 @@ pub fn client_network_loop(socket: tokio::net::UdpSocket, pings: usize) {
     });
     // Handle incoming responses
     tokio::spawn({
+        println!("Starting Client Handle incoming responses");
         let new_sock = socket.clone();
         async move {
             loop {

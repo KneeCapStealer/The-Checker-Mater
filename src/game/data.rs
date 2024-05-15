@@ -1,7 +1,14 @@
+use arboard::Clipboard;
+use slint::ComponentHandle;
+
+use crate::net::interface;
+
 use super::{board::Board, GameWindow, PieceColor, WindowType};
 use std::cell::{RefCell, RefMut};
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
+use std::thread::sleep;
+use std::time::Duration;
 
 pub struct Context {
     gamedata: Rc<RefCell<GameData>>,
@@ -54,16 +61,54 @@ impl Context {
                 let gamedata = try_get_static_self().unwrap();
 
                 move || {
-                    gamedata.load_game_window();
-
                     println!("Code was: \"{}\"", gamedata.window.get_lan_code());
+                    let join_code: String = gamedata.window.get_lan_code().into();
+                    gamedata.load_connecting_window(join_code.clone(), false);
+                    interface::start_lan_client();
+                    let handle_weak = gamedata.window.as_weak();
+                    tokio::spawn(async move {
+                        let _ = interface::connect_to_host_loop(&join_code, "CLIENT");
+                        let handle_copy = handle_weak.clone();
+                        slint::invoke_from_event_loop(move || {
+                            handle_copy.unwrap().invoke_load_game_window();
+                        })
+                        .unwrap();
+                    });
                 }
             });
         }
     }
 
     pub fn on_host_game(&self) -> impl FnMut() + 'static {
-        self.on_join_game()
+        let mut try_get_static_self = self.try_get_static_func();
+
+        move || {
+            let gamedata = try_get_static_self().unwrap();
+
+            let join_code = interface::start_lan_host();
+
+            gamedata.load_connecting_window(join_code.clone(), true);
+
+            let mut clipboard = Clipboard::new().unwrap();
+            clipboard.set_text(join_code);
+
+            let handle_weak = gamedata.window.as_weak();
+            std::thread::spawn(move || {
+                loop {
+                    if interface::is_connected() {
+                        break;
+                    }
+                    // Think this is important
+                    sleep(Duration::from_millis(50));
+                }
+                let handle_copy = handle_weak.clone();
+                slint::invoke_from_event_loop(move || {
+                    handle_copy.unwrap().invoke_load_game_window();
+                })
+                .unwrap();
+            });
+        }
+        // self.on_join_game()
     }
 
     pub fn on_board_clicked(&self) -> impl FnMut(i32) + 'static {
@@ -133,6 +178,12 @@ impl GameData {
 
     pub fn load_game_window(&self) {
         self.window.set_window_state(WindowType::Game);
+    }
+
+    pub fn load_connecting_window(&self, join_code: String, is_host: bool) {
+        self.window.set_join_code(join_code.into());
+        self.window.set_is_host(is_host);
+        self.window.set_window_state(WindowType::Connecting);
     }
 
     pub fn load_prompt_client_window(&self) {
