@@ -26,4 +26,4 @@ slint-build = "1.5.0"
 [lints.clippy]
 todo = "deny"
 dbg_macro = "deny"
-umimplemented = "deny"
+unimplemented = "deny"
