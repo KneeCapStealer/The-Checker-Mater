@@ -23,16 +23,10 @@ impl ConnectionStatus {
         Self::Reconnecting { tries: 0 }
     }
     pub fn is_connected(&self) -> bool {
-        match self {
-            Self::Connected { ping: _ } => true,
-            _ => false,
-        }
+        matches!(self, Self::Connected { ping: _ })
     }
     pub fn is_reconnecting(&self) -> bool {
-        match self {
-            Self::Reconnecting { tries: _ } => true,
-            _ => false,
-        }
+        matches!(self, Self::Reconnecting { tries: _ })
     }
     pub fn can_send(&self) -> bool {
         match self {
@@ -62,11 +56,11 @@ lazy_static! {
 }
 
 pub async fn get_other_addr() -> Option<SocketAddr> {
-    CONNECTION_DATA.lock().await.other_addr.clone()
+    CONNECTION_DATA.lock().await.other_addr
 }
 
 pub async fn set_other_addr(addr: SocketAddr) {
-    CONNECTION_DATA.lock().await.other_addr = Some(addr.clone())
+    CONNECTION_DATA.lock().await.other_addr = Some(addr)
 }
 
 pub async fn remove_other_addr() {
@@ -86,7 +80,7 @@ pub async fn remove_other_username() {
 }
 
 pub async fn get_connection_status() -> ConnectionStatus {
-    CONNECTION_DATA.lock().await.status.clone()
+    CONNECTION_DATA.lock().await.status
 }
 
 pub async fn set_connection_status(status: ConnectionStatus) {

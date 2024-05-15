@@ -6,7 +6,7 @@ use anyhow::anyhow;
 
 use super::net_utils::{FromPacket, PacketError, ToByte, ToPacket};
 
-use crate::game::{GameAction, PieceColor, PieceData, Move};
+use crate::game::{GameAction, Move, PieceColor, PieceData};
 
 #[derive(Clone, Debug)]
 pub enum P2pPacket {
@@ -16,16 +16,10 @@ pub enum P2pPacket {
 
 impl P2pPacket {
     pub fn is_request(&self) -> bool {
-        match self {
-            Self::Request(_) => true,
-            _ => false,
-        }
+        matches!(self, Self::Request(_))
     }
     pub fn is_response(&self) -> bool {
-        match self {
-            Self::Response(_) => true,
-            _ => false,
-        }
+        matches!(self, Self::Response(_))
     }
 }
 
@@ -178,7 +172,7 @@ impl ToPacket for P2pRequestPacket {
 
 impl FromPacket for P2pRequestPacket {
     fn from_packet(packet: Vec<u8>) -> anyhow::Result<Self> {
-        if packet.len() == 0 {
+        if packet.is_empty() {
             return Err(PacketError::Empty.into());
         }
         match packet[0] {
@@ -383,7 +377,7 @@ impl ToPacket for P2pResponsePacket {
 
 impl FromPacket for P2pResponsePacket {
     fn from_packet(packet: Vec<u8>) -> anyhow::Result<Self> {
-        if packet.len() == 0 {
+        if packet.is_empty() {
             return Err(PacketError::Empty.into());
         }
 
@@ -474,18 +468,15 @@ impl ToByte for P2pResponsePacket {
 impl ToPacket for GameAction {
     fn to_packet(&self) -> Vec<u8> {
         let mut bytes = self.to_u8().to_be_bytes().to_vec();
-        match self {
-            Self::MovePiece(move_action) => {
-                bytes.push(move_action.index as u8);
-                bytes.push(move_action.end as u8);
+        if let Self::MovePiece(move_action) = self {
+            bytes.push(move_action.index as u8);
+            bytes.push(move_action.end as u8);
 
-                if let Some(captured) = &move_action.captured {
-                    for piece in captured {
-                        bytes.push(*piece as u8);
-                    }
+            if let Some(captured) = &move_action.captured {
+                for piece in captured {
+                    bytes.push(*piece as u8);
                 }
             }
-            _ => {}
         }
         bytes
     }
@@ -493,7 +484,7 @@ impl ToPacket for GameAction {
 
 impl FromPacket for GameAction {
     fn from_packet(packet: Vec<u8>) -> anyhow::Result<Self> {
-        if packet.len() == 0 {
+        if packet.is_empty() {
             return Err(PacketError::invalid_length(1, 0).into());
         }
         match Self::from(packet[0]) {
@@ -507,8 +498,8 @@ impl FromPacket for GameAction {
                 let mut captured: Option<Vec<usize>> = None;
                 if packet.len() > 3 {
                     captured = Some(vec![]);
-                    for i in 3..packet.len() {
-                        unsafe {captured.as_mut().unwrap_unchecked().push(packet[i] as usize)}
+                    for pack in packet.iter().skip(3) {
+                        unsafe { captured.as_mut().unwrap_unchecked().push(*pack as usize) }
                     }
                 }
 
@@ -526,9 +517,6 @@ impl FromPacket for GameAction {
                 }
                 Ok(Self::Stalemate)
             }
-            _ => Err(
-                PacketError::data_error(&format!("Not valid packet type: {}", packet[0])).into(),
-            ),
         }
     }
 }
@@ -536,15 +524,13 @@ impl FromPacket for GameAction {
 impl From<u8> for GameAction {
     fn from(value: u8) -> Self {
         match value {
-            0 => {
-                Self::MovePiece(Move {index: 0, end: 0, captured: None})
-            }
-            1 => {
-                Self::Stalemate
-            }
-            2 => {
-                Self::Surrender
-            }
+            0 => Self::MovePiece(Move {
+                index: 0,
+                end: 0,
+                captured: None,
+            }),
+            1 => Self::Stalemate,
+            2 => Self::Surrender,
             _ => {
                 panic!("Not valid Gameaction value in 'From' cast")
             }
@@ -680,7 +666,7 @@ impl TryFrom<u8> for PieceData {
             PieceColor::Black
         };
 
-        let is_king = value & 0b100 == 1;
+        let is_king = value & 0b100 >= 0b100;
 
         let piece = Self {
             color,
