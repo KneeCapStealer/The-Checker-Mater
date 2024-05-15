@@ -81,78 +81,71 @@ pub fn host_network_loop(socket: tokio::net::UdpSocket) {
                     Err(_) => continue,
                 };
 
-                match incoming_packet {
-                    P2pPacket::Request(req) => {
-                        let packet = match req.packet {
-                            P2pRequestPacket::Ping => P2pResponsePacket::Pong,
-                            P2pRequestPacket::Connect {
-                                join_code,
-                                username,
-                            } => {
-                                if get_other_addr().await.is_some() {
-                                    println!(
-                                        "Failed join attempt from {:?} - Game session full.",
-                                        addr
-                                    );
-                                    P2pResponsePacket::error(P2pError::FullGameSession)
-                                } else if join_code != get_join_code().await.unwrap() {
-                                    println!(
-                                        "Failed join attempt from {:?} - Wrong join code.",
-                                        addr
-                                    );
-                                    P2pResponsePacket::error(P2pError::InvalidJoinCode)
-                                } else if req.session_id != CONNECT_SESSION_ID {
-                                    println!(
-                                        "Failed join attempt from {:?} - Wrong session code.",
-                                        addr
-                                    );
-                                    P2pResponsePacket::error(P2pError::InvalidSessionId)
-                                } else {
-                                    println!("{} at {:?} Joined the game!", username, addr);
+                if let P2pPacket::Request(req) = incoming_packet {
+                    let packet = match req.packet {
+                        P2pRequestPacket::Ping => P2pResponsePacket::Pong,
+                        P2pRequestPacket::Connect {
+                            join_code,
+                            username,
+                        } => {
+                            if get_other_addr().await.is_some() {
+                                println!(
+                                    "Failed join attempt from {:?} - Game session full.",
+                                    addr
+                                );
+                                P2pResponsePacket::error(P2pError::FullGameSession)
+                            } else if join_code != get_join_code().await.unwrap() {
+                                println!("Failed join attempt from {:?} - Wrong join code.", addr);
+                                P2pResponsePacket::error(P2pError::InvalidJoinCode)
+                            } else if req.session_id != CONNECT_SESSION_ID {
+                                println!(
+                                    "Failed join attempt from {:?} - Wrong session code.",
+                                    addr
+                                );
+                                P2pResponsePacket::error(P2pError::InvalidSessionId)
+                            } else {
+                                println!("{} at {:?} Joined the game!", username, addr);
 
-                                    set_session_id(rand::random::<u16>()).await;
-                                    set_connection_status(ConnectionStatus::connected()).await;
-                                    set_other_addr(addr).await;
+                                set_session_id(rand::random::<u16>()).await;
+                                set_connection_status(ConnectionStatus::connected()).await;
+                                set_other_addr(addr).await;
 
-                                    P2pResponsePacket::Connect {
-                                        client_color: PieceColor::White,
-                                        host_username: "Atle".to_owned(),
-                                    }
+                                P2pResponsePacket::Connect {
+                                    client_color: PieceColor::White,
+                                    host_username: "Atle".to_owned(),
                                 }
                             }
-                            P2pRequestPacket::Resync => P2pResponsePacket::resync(vec![]),
-                            P2pRequestPacket::GameAction { action } => {
-                                match action {
-                                    GameAction::Surrender => {
-                                        // TODO: Verify Surrender
-                                        push_incoming_gameaction(action).await;
-                                        P2pResponsePacket::Acknowledge
-                                    }
-                                    GameAction::Stalemate=> {
-                                        // TODO: Verify Stalemate
-                                        push_incoming_gameaction(action).await;
-                                        P2pResponsePacket::Acknowledge
-                                    }
-                                    GameAction::MovePiece(_) => {
-                                        // TODO: Verify move
-                                        push_incoming_gameaction(action).await;
-                                        P2pResponsePacket::Acknowledge
-                                    }
-                                }
-                            }
-                        };
-                        let session_id = get_session_id().await;
-                        let response = P2pResponse::new(session_id, req.transaction_id, packet);
-                        queue::push_outgoing_queue(P2pPacket::Response(response), None).await;
-                        time_since_ping = Instant::now();
-                    }
-                    P2pPacket::Response(resp) => {
-                        if !queue::check_transaction_id(resp.transaction_id).await {
-                            continue;
                         }
-                        queue::set_response(resp.transaction_id, Some(P2pPacket::Response(resp)))
-                            .await;
+                        P2pRequestPacket::Resync => P2pResponsePacket::resync(vec![]),
+                        P2pRequestPacket::GameAction { action } => {
+                            match action {
+                                GameAction::Surrender => {
+                                    // TODO: Verify Surrender
+                                    push_incoming_gameaction(action).await;
+                                    P2pResponsePacket::Acknowledge
+                                }
+                                GameAction::Stalemate => {
+                                    // TODO: Verify Stalemate
+                                    push_incoming_gameaction(action).await;
+                                    P2pResponsePacket::Acknowledge
+                                }
+                                GameAction::MovePiece(_) => {
+                                    // TODO: Verify move
+                                    push_incoming_gameaction(action).await;
+                                    P2pResponsePacket::Acknowledge
+                                }
+                            }
+                        }
+                    };
+                    let session_id = get_session_id().await;
+                    let response = P2pResponse::new(session_id, req.transaction_id, packet);
+                    queue::push_outgoing_queue(P2pPacket::Response(response), None).await;
+                    time_since_ping = Instant::now();
+                } else if let P2pPacket::Response(resp) = incoming_packet {
+                    if !queue::check_transaction_id(resp.transaction_id).await {
+                        continue;
                     }
+                    queue::set_response(resp.transaction_id, Some(P2pPacket::Response(resp))).await;
                 }
             }
         }
@@ -270,54 +263,50 @@ pub fn client_network_loop(socket: tokio::net::UdpSocket, pings: usize) {
                 if addr != get_other_addr().await.unwrap() {
                     continue;
                 }
-                match incoming_packet {
-                    P2pPacket::Request(req) => {
-                        let packet = match req.packet {
-                            P2pRequestPacket::Ping => P2pResponsePacket::Pong,
-                            P2pRequestPacket::GameAction { action } => {
-                                match action {
-                                    GameAction::Surrender => {
-                                        // TODO: Verify Surrender
-                                        push_incoming_gameaction(action).await;
-                                        println!(
-                                            "Incoming action len: {}",
-                                            get_incoming_gameaction_len().await
-                                        );
-                                        P2pResponsePacket::Acknowledge
-                                    }
-                                    GameAction::Stalemate => {
-                                        // TODO: Verify stalemate
-                                        push_incoming_gameaction(action).await;
-                                        println!(
-                                            "Incoming action len: {}",
-                                            get_incoming_gameaction_len().await
-                                        );
-                                        P2pResponsePacket::Acknowledge
-                                    }
-                                    GameAction::MovePiece(_) => {
-                                        // TODO: Verify move
-                                        push_incoming_gameaction(action).await;
-                                        println!(
-                                            "Incoming action len: {}",
-                                            get_incoming_gameaction_len().await
-                                        );
-                                        P2pResponsePacket::Acknowledge
-                                    }
+                if let P2pPacket::Request(req) = incoming_packet {
+                    let packet = match req.packet {
+                        P2pRequestPacket::Ping => P2pResponsePacket::Pong,
+                        P2pRequestPacket::GameAction { action } => {
+                            match action {
+                                GameAction::Surrender => {
+                                    // TODO: Verify Surrender
+                                    push_incoming_gameaction(action).await;
+                                    println!(
+                                        "Incoming action len: {}",
+                                        get_incoming_gameaction_len().await
+                                    );
+                                    P2pResponsePacket::Acknowledge
+                                }
+                                GameAction::Stalemate => {
+                                    // TODO: Verify stalemate
+                                    push_incoming_gameaction(action).await;
+                                    println!(
+                                        "Incoming action len: {}",
+                                        get_incoming_gameaction_len().await
+                                    );
+                                    P2pResponsePacket::Acknowledge
+                                }
+                                GameAction::MovePiece(_) => {
+                                    // TODO: Verify move
+                                    push_incoming_gameaction(action).await;
+                                    println!(
+                                        "Incoming action len: {}",
+                                        get_incoming_gameaction_len().await
+                                    );
+                                    P2pResponsePacket::Acknowledge
                                 }
                             }
-                            _ => P2pResponsePacket::error(P2pError::WrongDirection),
-                        };
-                        let response = P2pResponse::new(req.session_id, req.transaction_id, packet);
-                        send_p2p_packet(&new_sock, response, addr).await.unwrap();
-                        println!("Sent package");
-                    }
-                    P2pPacket::Response(resp) => {
-                        // if !queue::check_transaction_id(resp.transaction_id).await {
-                        //     continue;
-                        // }
-                        queue::set_response(resp.transaction_id, Some(P2pPacket::Response(resp)))
-                            .await;
-                    }
+                        }
+                        _ => P2pResponsePacket::error(P2pError::WrongDirection),
+                    };
+                    let response = P2pResponse::new(req.session_id, req.transaction_id, packet);
+                    send_p2p_packet(&new_sock, response, addr).await.unwrap();
+                    println!("Sent package");
+                } else if let P2pPacket::Response(resp) = incoming_packet {
+                    // if !queue::check_transaction_id(resp.transaction_id).await {
+                    //     continue;
+                    // }
+                    queue::set_response(resp.transaction_id, Some(P2pPacket::Response(resp))).await;
                 }
             }
         }
