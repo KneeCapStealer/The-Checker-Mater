@@ -68,7 +68,7 @@ pub struct Move {
     pub promoted: bool,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 enum Direction {
     UpLeft = -5,
     UpRight = -4,
