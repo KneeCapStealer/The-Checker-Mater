@@ -147,7 +147,7 @@ impl Context {
                 })
                 .unwrap();
             });
-            gamedata.start_new_game(PieceColor::White);
+            gamedata.get_board_mut().start_new_game(PieceColor::White);
             gamedata.is_player_turn = true;
         }
         // self.on_join_game()
