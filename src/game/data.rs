@@ -274,7 +274,7 @@ impl GameData {
     }
 
     pub fn start_new_game(&mut self, your_color: PieceColor) {
-        self.get_board().start_new_game(your_color);
+        self.get_board_mut().start_new_game(your_color);
     }
 
     pub fn load_start_window(&self) {
