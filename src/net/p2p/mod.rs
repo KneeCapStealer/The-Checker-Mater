@@ -471,6 +471,7 @@ impl ToPacket for GameAction {
         if let Self::MovePiece(move_action) = self {
             bytes.push(move_action.index as u8);
             bytes.push(move_action.end as u8);
+            bytes.push(move_action.promoted as u8);
 
             if let Some(captured) = &move_action.captured {
                 for piece in captured {
@@ -492,8 +493,8 @@ impl FromPacket for GameAction {
                 if packet.len() < 3 {
                     return Err(PacketError::invalid_length(4, packet.len()).into());
                 }
-                let to = packet[1] as usize;
-                let from = packet[2] as usize;
+                let index = packet[1] as usize;
+                let end = packet[2] as usize;
                 let promoted = packet[3] != 0;
 
                 let mut captured: Option<Vec<usize>> = None;
@@ -505,7 +506,7 @@ impl FromPacket for GameAction {
                     }
                 }
 
-                Ok(Self::move_piece(from, to, captured, promoted))
+                Ok(Self::move_piece(index, end, captured, promoted))
             }
             Self::Surrender => {
                 if packet.len() != 1 {

@@ -23,6 +23,32 @@ impl PieceData {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct Move {
+    pub index: usize,
+    pub end: usize,
+    pub promoted: bool,
+    pub captured: Option<Vec<usize>>,
+}
+
+impl Move {
+    fn reverse(&self) -> Self {
+        let captured = self.captured.as_ref().map(|captured| {
+            let mut captured = captured.clone();
+            captured.iter_mut().for_each(|piece| *piece = 31 - *piece);
+
+            captured
+        });
+
+        Self {
+            index: 31 - self.index,
+            end: 31 - self.end,
+            promoted: self.promoted,
+            captured,
+        }
+    }
+}
+
 /// An enum which holds the possible actions a user can make in the game.
 #[derive(Clone, Debug)]
 pub enum GameAction {
@@ -53,19 +79,6 @@ impl GameAction {
             promoted,
         })
     }
-}
-
-/// Struct defining what pieces are moved
-/// and an optional captured piece
-#[derive(Clone, Debug)]
-pub struct Move {
-    /// The index of the piece that is moving
-    pub index: usize,
-    /// The index of the piece's new destination
-    pub end: usize,
-    /// An optional vector of possible captured peices
-    pub captured: Option<Vec<usize>>,
-    pub promoted: bool,
 }
 
 #[derive(Clone, Copy, Debug)]

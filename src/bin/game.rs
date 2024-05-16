@@ -14,6 +14,7 @@ async fn main() -> Result<(), slint::PlatformError> {
 
     window.on_join_game(gamedata.on_join_game());
     window.on_host_game(gamedata.on_host_game());
+    window.on_move_piece(gamedata.on_move_piece());
 
     window.on_exit(|| {
         exit(0);
