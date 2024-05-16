@@ -3,8 +3,11 @@ use slint::ComponentHandle;
 
 use crate::net::interface;
 
-use super::{board::Board, GameAction, GameWindow, PieceColor, WindowType};
-use std::cell::{RefCell, RefMut};
+use super::{
+    board::{set_board_move, Board},
+    GameAction, GameWindow, PieceColor, WindowType,
+};
+use std::cell::RefCell;
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
 use std::thread::sleep;
@@ -59,7 +62,7 @@ impl Context {
             gamedata.load_prompt_client_window();
 
             gamedata.window.on_join_prompt({
-                let gamedata = try_get_static_self().unwrap();
+                let mut gamedata = try_get_static_self().unwrap();
 
                 move || {
                     let mut join_code: String = gamedata.window.get_lan_code().into();
@@ -94,6 +97,9 @@ impl Context {
                         })
                         .unwrap();
                     });
+
+                    gamedata.get_board_mut().start_new_game(PieceColor::Black);
+                    gamedata.wait_for_opponent();
                 }
             });
         }
@@ -104,8 +110,6 @@ impl Context {
 
         move || {
             let mut gamedata = try_get_static_self().unwrap();
-            gamedata.start_new_game(PieceColor::White);
-
             let join_code = interface::start_lan_host();
 
             gamedata.load_connecting_window(join_code.clone(), true);
@@ -143,17 +147,26 @@ impl Context {
                 })
                 .unwrap();
             });
+            gamedata.start_new_game(PieceColor::White);
+            gamedata.is_player_turn = true;
         }
         // self.on_join_game()
     }
 
     pub fn on_board_clicked(&self) -> impl FnMut(i32) + 'static {
-        let board_weak = Rc::downgrade(&self.board);
+        let mut try_get_static_self = self.try_get_static_func();
 
         move |index: i32| {
-            let strong_board = board_weak.upgrade().unwrap();
-            let mut board = strong_board.as_ref().borrow_mut();
+            let mut gamedata = try_get_static_self().unwrap();
+            let board = gamedata.get_board_mut();
+
+            let mut gamedata = try_get_static_self().unwrap();
+
             let selected_piece = board.selected_square as usize;
+
+            if !gamedata.is_player_turn {
+                return;
+            }
 
             if board.piece_is_player(selected_piece) {
                 let legal_moves = board.get_legal_moves();
@@ -165,8 +178,10 @@ impl Context {
                         board.selected_square = index;
 
                         if input_matches_move {
-                            board.move_piece(mov);
+                            set_board_move(mov);
+                            gamedata.window.invoke_move_piece();
                             interface::send_game_action(GameAction::MovePiece(mov.clone()), |_| ());
+                            gamedata.wait_for_opponent();
                             break;
                         }
                     }
@@ -182,25 +197,47 @@ impl Context {
         }
     }
 
+    pub fn on_move_piece(&self) -> impl FnMut() + 'static {
+        let mut try_get_static_self = self.try_get_static_func();
+
+        move || {
+            let mut gamedata = try_get_static_self().unwrap();
+            gamedata.get_board_mut().move_piece();
+
+            gamedata.is_player_turn = true;
+        }
+    }
+
     pub fn wait_for_opponent(&mut self) {
         self.is_player_turn = false;
-        let try_get_static_self = self.try_get_static_func();
+        let weak_window = self.window.as_weak();
         tokio::spawn(async move {
+            let mut action;
             loop {
-                if let Some(action) = interface::get_next_game_action() {
-                    match action {
-                        GameAction::MovePiece(mov) => {
-                            slint::invoke_from_event_loop(move || {
-                                // TODO: Move piece via slint
-                            })
-                            .unwrap();
-                        }
-                        _ => {}
-                    }
-
-                    return;
+                action = interface::get_next_game_action();
+                if action.is_none() {
+                    tokio::time::sleep(Duration::from_millis(50)).await;
+                    continue;
                 }
-                tokio::time::sleep(Duration::from_millis(50)).await;
+                break;
+            }
+
+            let action = unsafe { action.unwrap_unchecked() };
+            match action {
+                GameAction::MovePiece(mov) => {
+                    set_board_move(&mov.reverse());
+                    slint::invoke_from_event_loop(move || {
+                        weak_window.unwrap().invoke_move_piece();
+                    })
+                    .unwrap();
+                }
+                _ => {
+                    println!(
+                        "Got GameAction {:?} while waiting for opponent,
+                                     this is not implemented yet",
+                        action
+                    );
+                }
             }
         });
     }
@@ -208,7 +245,7 @@ impl Context {
 
 pub struct GameData {
     window: GameWindow,
-    board: Rc<RefCell<Board>>,
+    board: Board,
     is_host: Option<bool>,
     is_player_turn: bool,
 }
@@ -216,7 +253,7 @@ pub struct GameData {
 impl GameData {
     pub fn new() -> Result<Self, slint::PlatformError> {
         let window = GameWindow::new()?;
-        let board = Rc::new(RefCell::new(Board::new(&window)));
+        let board = Board::new(&window);
 
         Ok(GameData {
             window,
@@ -231,8 +268,8 @@ impl GameData {
         &self.window
     }
 
-    fn get_board(&self) -> RefMut<Board> {
-        self.board.as_ref().borrow_mut()
+    fn get_board_mut(&mut self) -> &mut Board {
+        &mut self.board
     }
 
     pub fn start_new_game(&mut self, your_color: PieceColor) {

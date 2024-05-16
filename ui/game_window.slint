@@ -28,6 +28,8 @@ export component GameWindow inherits Window {
     in-out property <string> my-username <=> my-name.text;
     in-out property <string> other-username <=> other-name.text;
 
+    callback move-piece();
+
     callback exit <=> start-window.exit;
     callback join-game <=> start-window.join-game;
     callback host-game <=> start-window.host-game;
@@ -44,10 +46,10 @@ export component GameWindow inherits Window {
     }
 
     connecting-window := ConnectionWindow {
-       visible: window-state == WindowType.Connecting; 
+        visible: window-state == WindowType.Connecting;
     }
 
-    public function load-game-window() {
+    public function load-game-window(){
         window-state = WindowType.Game;
     }
     public function set-usernames(my: string, other: string) {
