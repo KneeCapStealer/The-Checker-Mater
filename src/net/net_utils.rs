@@ -70,7 +70,7 @@ impl NetworkError {
 
 pub async fn get_available_port() -> anyhow::Result<u16> {
     for port_id in 6000..=7000 {
-        if let Ok(_) = tokio::net::UdpSocket::bind(("0.0.0.0", port_id)).await {
+        if (tokio::net::UdpSocket::bind(("0.0.0.0", port_id)).await).is_ok() {
             return Ok(port_id);
         }
     }
