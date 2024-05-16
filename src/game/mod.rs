@@ -40,8 +40,18 @@ impl GameAction {
     /// * `start` - The start location of the piece.
     /// * `end` - The end location of the piece.
     /// * `captured` - If the move has captured a piece(s), this holds the index of the piece(s).
-    pub fn move_piece(start: usize, end: usize, captured: Option<Vec<usize>>) -> Self {
-        Self::MovePiece(Move::new(start, end, captured))
+    pub fn move_piece(
+        index: usize,
+        end: usize,
+        captured: Option<Vec<usize>>,
+        promoted: bool,
+    ) -> Self {
+        Self::MovePiece(Move {
+            index,
+            end,
+            captured,
+            promoted,
+        })
     }
 }
 
@@ -55,19 +65,10 @@ pub struct Move {
     pub end: usize,
     /// An optional vector of possible captured peices
     pub captured: Option<Vec<usize>>,
-}
-impl Move {
-    /// Creates a new instance of `Move`.
-    pub fn new(start: usize, end: usize, captured: Option<Vec<usize>>) -> Self {
-        Self {
-            index: start,
-            end,
-            captured,
-        }
-    }
+    pub promoted: bool,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 enum Direction {
     UpLeft = -5,
     UpRight = -4,

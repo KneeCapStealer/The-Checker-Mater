@@ -38,7 +38,7 @@ impl Deref for Context {
     type Target = GameData;
 
     fn deref(&self) -> &Self::Target {
-        unsafe { self.gamedata.as_ptr().as_mut().unwrap_unchecked() }
+        unsafe { self.gamedata.as_ptr().as_ref().unwrap_unchecked() }
     }
 }
 
@@ -128,22 +128,27 @@ impl Context {
             let selected_piece = board.selected_square as usize;
 
             if board.piece_is_player(selected_piece) {
-                let moves = board.get_legal_moves_piece(selected_piece);
-                if let Some(moves) = moves {
-                    for mov in moves.0 {
-                        if mov.end == index as usize {
+                let legal_moves = board.get_legal_moves();
+                if let Some(moves) = legal_moves {
+                    'move_check: for mov in &moves {
+                        let input_matches_move =
+                            mov.end == index as usize && mov.index == selected_piece;
+
+                        board.selected_square = index;
+
+                        if input_matches_move {
                             board.move_piece(mov);
+                            break 'move_check;
                         }
                     }
                 }
             }
-
+            // If there was no move with the input
             board.reset_squares();
-            if let Some(moves) = board.get_legal_moves() {
-                let mark_indicies: Vec<usize> = moves.iter().map(|mov| mov.end).collect();
+            if let Some(moves) = board.get_legal_moves_piece(index as usize) {
+                let mark_indicies: Vec<usize> = moves.0.iter().map(|mov| mov.end).collect();
                 board.mark_squares(mark_indicies.as_slice());
             }
-
             board.selected_square = index;
         }
     }

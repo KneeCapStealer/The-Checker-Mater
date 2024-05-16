@@ -1,6 +1,7 @@
 use super::{BoardSquare, Direction, GameWindow, Move, PieceColor, PieceData};
 use slint::ComponentHandle;
 use slint::{Model, Weak};
+use std::mem::{transmute, MaybeUninit};
 use std::rc::Rc;
 
 /// Struct holding gamestate of the checkers board
@@ -33,17 +34,19 @@ impl Board {
     fn default_setup(player_color: PieceColor) -> Vec<PieceData> {
         let enemy_color = player_color.get_opposite();
 
-        let mut tiles: Vec<PieceData> = vec![
-            PieceData {
-                is_active: true,
-                color: enemy_color,
-                is_king: false,
-            };
-            12
-        ];
+        let mut tiles = vec![];
 
-        for i in 12..32 {
-            if i < 20 {
+        for i in 0..32 {
+            if i == 6 || i == 14 || i == 17 {
+                tiles.push(PieceData {
+                    color: enemy_color,
+                    is_active: true,
+                    is_king: false,
+                });
+                continue;
+            }
+
+            if i < 23 {
                 tiles.push(PieceData::const_default());
                 continue;
             }
@@ -67,32 +70,22 @@ impl Board {
         game.set_pieces(self.pieces.clone().into());
 
         self.reset_squares();
-        if let Some(moves) = self.get_legal_moves() {
-            let mark_indicies: Vec<usize> = moves.iter().map(|mov| mov.end).collect();
-            self.mark_squares(mark_indicies.as_slice());
-        }
     }
 
     /// Takes a `Move` struct and performs the move described within
-    pub fn move_piece(&mut self, mov: Move) {
+    pub fn move_piece(&mut self, mov: &Move) {
         let mut start_data = self.pieces.row_data(mov.index).unwrap();
 
         // Promotion to king
-        if self.piece_is_player(mov.index) && mov.end < 4 {
-            start_data.is_king = true;
-        }
-
-        if self.piece_is_enemy(mov.index) && mov.end >= 32 - 4 {
-            start_data.is_king = true;
-        }
+        start_data.is_king |= mov.promoted;
 
         self.pieces.set_row_data(mov.end, start_data);
         self.pieces
             .set_row_data(mov.index, PieceData::const_default());
 
-        if let Some(captured) = mov.captured {
+        if let Some(captured) = &mov.captured {
             for piece in captured {
-                self.pieces.set_row_data(piece, PieceData::const_default())
+                self.pieces.set_row_data(*piece, PieceData::const_default())
             }
         }
     }
@@ -178,7 +171,7 @@ impl Board {
 
         #[allow(clippy::too_many_arguments)]
         fn check_move(
-            tiles: Rc<slint::VecModel<PieceData>>,
+            mut pieces: [PieceData; 32],
             start: usize,
             index: usize,
             local_player_color: PieceColor,
@@ -199,24 +192,25 @@ impl Board {
                 return None;
             }
 
+            let is_local_player = local_player_color != enemy_color;
             // If the piece isn't a king it cant move backwards
             if !is_king {
-                if direction.is_down() && local_player_color != enemy_color {
+                if direction.is_down() && is_local_player {
                     return None;
                 }
 
-                if direction.is_up() && local_player_color == enemy_color {
+                if direction.is_up() && !is_local_player {
                     return None;
                 }
             }
 
             let next = index as i32 + direction.get_value(index);
-            if next < 0 || next > tiles.row_count() as i32 {
+            if next < 0 || next > pieces.len() as i32 {
                 return None;
             }
+            let next_tile = &pieces[next as usize];
 
-            let next_tile = tiles.row_data(next as usize)?;
-            // If the next tile is an enemy check if the tile behind it is empty
+            // If the next piece is an enemy check if the next tile is empty
             // If so this piece can be taken
             if next_tile.is_active {
                 if next_tile.color != enemy_color || is_taking {
@@ -224,7 +218,7 @@ impl Board {
                 }
 
                 return if let Some(mut next_move) = check_move(
-                    tiles,
+                    pieces,
                     start,
                     next as usize,
                     local_player_color,
@@ -233,13 +227,17 @@ impl Board {
                     direction,
                     true,
                 ) {
-                    if next_move.1 {
-                        for i in 0..next_move.0.len() {
-                            if next_move.0[i].captured.is_none() {
-                                next_move.0.remove(i);
-                            }
-                        }
+                    if !next_move.1 {
+                        return Some(next_move);
                     }
+
+                    // If one of the moves are capturing
+                    // Remove all the moves that aren't capturing
+                    next_move.0 = next_move
+                        .0
+                        .iter()
+                        .filter_map(|mov| mov.captured.as_ref().map(|_| mov.clone()))
+                        .collect();
 
                     Some(next_move)
                 } else {
@@ -247,20 +245,54 @@ impl Board {
                 };
             }
 
+            let promoting = is_local_player && next < 4 || !is_local_player && next > 32 - 4;
+
             // If we are taking a piece, since the next tile is empty
-            // We return the available move to take the piece
+            // We need to return this move, but also check if we can take more pieces
             if is_taking {
+                // Check to see if we can take further pieces
+                let mut further_moves = None;
+
+                pieces[index] = PieceData::const_default();
+                for direction in Direction::values() {
+                    let moves = check_move(
+                        pieces.clone(),
+                        start,
+                        next as usize,
+                        local_player_color,
+                        enemy_color,
+                        is_king || promoting,
+                        direction,
+                        false,
+                    );
+
+                    if let Some(mut moves) = moves {
+                        // Discard moves that don't capture
+                        if !moves.1 {
+                            continue;
+                        }
+                        // Append the current piece to the captured vector
+                        for mov in &mut moves.0 {
+                            unsafe { mov.captured.as_mut().unwrap_unchecked().push(index) };
+                            mov.promoted |= promoting;
+                        }
+                        // Add to list of possible moves
+                        further_moves.get_or_insert(vec![]).append(&mut moves.0);
+                    }
+                }
+
                 return Some((
-                    vec![Move {
+                    further_moves.unwrap_or(vec![Move {
                         index: start,
                         end: next as usize,
                         captured: Some(vec![index]),
-                    }],
-                    false,
+                        promoted: promoting,
+                    }]),
+                    true,
                 ));
             }
 
-            // If we aren't taking a piece, and this tile is piece is empty
+            // If we aren't taking a piece, and this tile is empty
             // We add this move to a list of possible moves
             let mut moves = vec![];
             let mut is_taking = false;
@@ -268,7 +300,7 @@ impl Board {
             // If the current piece is a king, it may be able to keep moving
             if is_king {
                 if let Some(mut next_moves) = check_move(
-                    tiles,
+                    pieces,
                     start,
                     next as usize,
                     local_player_color,
@@ -282,11 +314,14 @@ impl Board {
                 }
             }
 
+            // If we are capturing pieces
+            // Since this move doesn't capture, it should not be added
             if !is_taking {
                 moves.push(Move {
                     index: start,
                     end: next as usize,
                     captured: None,
+                    promoted: promoting,
                 });
             }
 
@@ -297,10 +332,20 @@ impl Board {
 
         let mut moves: Option<Vec<Move>> = None;
         let mut is_taking = false;
+        let mut pieces: [MaybeUninit<PieceData>; 32] =
+            unsafe { MaybeUninit::uninit().assume_init() };
+
+        for (i, element) in pieces.iter_mut().enumerate() {
+            let piece = self.pieces.row_data(i)?;
+            *element = MaybeUninit::new(piece);
+        }
+
+        let pieces: [PieceData; 32] = unsafe { transmute(pieces) };
+
         for direction in Direction::values() {
             // Since the direction is valid, run the check move algorithm
             let next_moves = check_move(
-                self.pieces.clone(),
+                pieces.clone(),
                 index,
                 index,
                 self.player_color,
@@ -310,7 +355,7 @@ impl Board {
                 false,
             );
 
-            if let None = next_moves {
+            if next_moves.is_none() {
                 continue;
             }
 

@@ -494,16 +494,18 @@ impl FromPacket for GameAction {
                 }
                 let to = packet[1] as usize;
                 let from = packet[2] as usize;
+                let promoted = packet[3] != 0;
 
                 let mut captured: Option<Vec<usize>> = None;
-                if packet.len() > 3 {
+                if packet.len() > 4 {
                     captured = Some(vec![]);
+
                     for pack in packet.iter().skip(3) {
                         unsafe { captured.as_mut().unwrap_unchecked().push(*pack as usize) }
                     }
                 }
 
-                Ok(Self::move_piece(from, to, captured))
+                Ok(Self::move_piece(from, to, captured, promoted))
             }
             Self::Surrender => {
                 if packet.len() != 1 {
@@ -528,6 +530,7 @@ impl From<u8> for GameAction {
                 index: 0,
                 end: 0,
                 captured: None,
+                promoted: false,
             }),
             1 => Self::Stalemate,
             2 => Self::Surrender,
