@@ -2,6 +2,7 @@ import { Board } from "board.slint";
 import { StartWindow } from "start_window.slint";
 import { LanPromptWindow } from "lan_prompt_window.slint";
 import { ConnectionWindow } from "connection_window.slint";
+import { VerticalBox } from "std-widgets.slint";
 
 export enum WindowType {
     Start,
@@ -21,12 +22,17 @@ export component GameWindow inherits Window {
 
     in-out property <WindowType> window-state: WindowType.Start;
 
-    in-out property <bool> is-host <=> connecting-window.is-host;
     in-out property <string> join-code <=> connecting-window.join-code;
+    in-out property <bool> is-host <=> connecting-window.is-host;
+
+    in-out property <string> my-username <=> my-name.text;
+    in-out property <string> other-username <=> other-name.text;
 
     callback exit <=> start-window.exit;
     callback join-game <=> start-window.join-game;
     callback host-game <=> start-window.host-game;
+
+    out property <string> username: start-window.username;
     start-window := StartWindow {
         visible: window-state == WindowType.Start;
     }
@@ -44,6 +50,10 @@ export component GameWindow inherits Window {
     public function load-game-window() {
         window-state = WindowType.Game;
     }
+    public function set-usernames(my: string, other: string) {
+        root.my-username = my;
+        root.other-username = other;
+    }
 
     // Board property links
     callback clicked <=> board.square-clicked;
@@ -51,12 +61,25 @@ export component GameWindow inherits Window {
     in-out property squares <=> board.squares;
 
     property <length> board-length: self.height * 85%;
-    board := Board {
-        square-color: #352f3b;
-        back-color: #e3e0a0;
-        marked-color: #ffff41;
-        board-length: parent.board-length;
-        center: { x: parent.width / 2, y: parent.height / 2 };
+    board-layout := VerticalBox {
         visible: window-state == WindowType.Game;
+        other-name := Text {
+            text: "[OTHER]";
+            font-size: 16px;
+            horizontal-alignment: TextHorizontalAlignment.center;
+        }
+        board := Board {
+            square-color: #352f3b;
+            back-color: #e3e0a0;
+            marked-color: #ffff41;
+            board-length: root.board-length;
+            center: { x: root.width / 2, y: root.height / 2 };
+            visible: window-state == WindowType.Game;
+        }
+        my-name := Text {
+            text: "[YOU]";
+            font-size: 16px;
+            horizontal-alignment: TextHorizontalAlignment.center;
+        }
     }
 }

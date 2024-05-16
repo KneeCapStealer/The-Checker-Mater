@@ -1,15 +1,18 @@
-import { VerticalBox, HorizontalBox, Button } from "std-widgets.slint";
+import { VerticalBox, HorizontalBox, Button, LineEdit } from "std-widgets.slint";
 
 export component StartWindow {
+    out property <string> username: username.text;
     callback host-game <=> host.clicked;
     callback join-game <=> join.clicked;
     callback exit <=> exit.clicked;
     VerticalBox {
         Text {
             text: "The Checker Mater";
-            color: black;
             font-size: 32px;
             font-weight: 3;
+        }
+        username := LineEdit {
+            placeholder-text: "Username";
         }
         host := Button {
             text: "Host Game";

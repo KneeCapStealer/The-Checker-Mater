@@ -53,7 +53,8 @@ impl Context {
         let mut try_get_static_self = self.try_get_static_func();
 
         move || {
-            let gamedata = try_get_static_self().unwrap();
+            let mut gamedata = try_get_static_self().unwrap();
+            gamedata.start_new_game(PieceColor::Black);
 
             gamedata.load_prompt_client_window();
 
@@ -61,20 +62,31 @@ impl Context {
                 let gamedata = try_get_static_self().unwrap();
 
                 move || {
-                    let join_code: String = gamedata.window.get_lan_code().into();
+                    let mut join_code: String = gamedata.window.get_lan_code().into();
+                    join_code = join_code.trim().to_owned();
+
                     println!("Code was: \"{}\"", &join_code);
 
                     gamedata.load_connecting_window(join_code.clone(), false);
 
                     interface::start_lan_client();
 
+                    let username: String = gamedata.window.get_username().into();
+
                     let handle_weak = gamedata.window.as_weak();
                     tokio::spawn(async move {
-                        println!("Hello");
-                        let (color, name) =
-                            interface::connect_to_host_loop(&join_code, "CLIENT").unwrap();
+                        let (color, host_username) =
+                            interface::connect_to_host_loop(&join_code, &username).unwrap();
 
-                        println!("Joined {}'s game. You are {:?}", name, color);
+                        println!("Joined {}'s game. You are {:?}", host_username, color);
+
+                        let handle_copy = handle_weak.clone();
+                        slint::invoke_from_event_loop(move || {
+                            handle_copy
+                                .unwrap()
+                                .invoke_set_usernames(username.into(), host_username.into());
+                        })
+                        .unwrap();
 
                         let handle_copy = handle_weak.clone();
                         slint::invoke_from_event_loop(move || {
@@ -91,7 +103,8 @@ impl Context {
         let mut try_get_static_self = self.try_get_static_func();
 
         move || {
-            let gamedata = try_get_static_self().unwrap();
+            let mut gamedata = try_get_static_self().unwrap();
+            gamedata.start_new_game(PieceColor::White);
 
             let join_code = interface::start_lan_host();
 
@@ -99,6 +112,9 @@ impl Context {
 
             let mut clipboard = Clipboard::new().unwrap();
             clipboard.set_text(join_code).unwrap();
+
+            let username: String = gamedata.window.get_username().into();
+            interface::set_my_username(&username);
 
             let handle_weak = gamedata.window.as_weak();
             std::thread::spawn(move || {
@@ -109,6 +125,18 @@ impl Context {
                     // Think this is important
                     sleep(Duration::from_millis(50));
                 }
+
+                let client_username =
+                    interface::get_other_username().unwrap_or("NO USERNAME".to_owned());
+
+                let handle_copy = handle_weak.clone();
+                slint::invoke_from_event_loop(move || {
+                    handle_copy
+                        .unwrap()
+                        .invoke_set_usernames(username.into(), client_username.into());
+                })
+                .unwrap();
+
                 let handle_copy = handle_weak.clone();
                 slint::invoke_from_event_loop(move || {
                     handle_copy.unwrap().invoke_load_game_window();
@@ -181,8 +209,8 @@ impl GameData {
         self.board.as_ref().borrow_mut()
     }
 
-    pub fn start_new_game(&mut self) {
-        self.get_board().start_new_game(PieceColor::default());
+    pub fn start_new_game(&mut self, your_color: PieceColor) {
+        self.get_board().start_new_game(your_color);
     }
 
     pub fn load_start_window(&self) {

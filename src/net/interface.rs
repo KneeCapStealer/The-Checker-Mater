@@ -137,17 +137,10 @@ pub fn connect_to_host_loop(
     join_code: &str,
     username: &str,
 ) -> anyhow::Result<(PieceColor, String)> {
-    executor::block_on(tokio::time::timeout(
-        Duration::from_secs(1),
-        status::set_join_code(join_code),
-    ))
-    .unwrap();
+    executor::block_on(status::set_join_code(join_code));
     let host_addr = hex_decode_ip(join_code).unwrap();
-    executor::block_on(tokio::time::timeout(
-        Duration::from_secs(1),
-        status::set_other_addr(host_addr),
-    ))
-    .unwrap();
+    executor::block_on(status::set_other_addr(host_addr));
+    set_my_username(username);
     println!("Starting to connect...");
     let mut connection_tick = tokio::time::interval(Duration::from_millis(500));
     loop {
@@ -227,4 +220,9 @@ pub fn is_connected() -> bool {
 /// Gets the other users username.
 pub fn get_other_username() -> Option<String> {
     executor::block_on(status::get_other_username())
+}
+
+/// Sets your username.
+pub fn set_my_username(name: &str) {
+    executor::block_on(status::set_my_username(name))
 }

@@ -41,6 +41,7 @@ pub struct ConnectionData {
     status: Mutex<ConnectionStatus>,
     other_addr: Mutex<Option<SocketAddr>>,
     other_username: Mutex<Option<String>>,
+    my_username: Mutex<Option<String>>,
     join_code: Mutex<Option<String>>,
     session_id: Mutex<u16>,
 }
@@ -50,6 +51,7 @@ lazy_static! {
         status: Mutex::new(ConnectionStatus::Disconnected),
         other_addr: Mutex::new(None),
         other_username: Mutex::new(None),
+        my_username: Mutex::new(None),
         join_code: Mutex::new(None),
         session_id: Mutex::new(CONNECT_SESSION_ID),
     });
@@ -73,6 +75,14 @@ pub async fn get_other_username() -> Option<String> {
 
 pub async fn set_other_username(name: &str) {
     *CONNECTION_DATA.other_username.lock().await = Some(name.to_owned())
+}
+
+pub async fn get_my_username() -> Option<String> {
+    CONNECTION_DATA.my_username.lock().await.clone()
+}
+
+pub async fn set_my_username(name: &str) {
+    *CONNECTION_DATA.my_username.lock().await = Some(name.to_owned())
 }
 
 pub async fn remove_other_username() {
