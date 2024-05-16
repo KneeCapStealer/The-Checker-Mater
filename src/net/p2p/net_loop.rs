@@ -205,12 +205,12 @@ pub fn client_network_loop(socket: tokio::net::UdpSocket, pings: usize) {
                                 println!("Got wrong packet, expected pong, got: ");
                                 dbg!(&pong);
                             }
-                            let elapsed_ns = time.elapsed().as_nanos();
-                            println!("ping: {} ns", elapsed_ns);
+                            let elapsed_ms = time.elapsed().as_millis();
+                            println!("ping: {} ms", elapsed_ms);
                             if get_connection_status().await.is_reconnecting() {
                                 set_connection_status(ConnectionStatus::connected()).await;
                             }
-                            set_connection_ping(elapsed_ns).await;
+                            set_connection_ping(elapsed_ms).await;
                         }
                     }
                     Err(e) => {

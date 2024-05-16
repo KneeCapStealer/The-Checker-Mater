@@ -55,7 +55,7 @@ pub fn start_lan_client() {
     ));
 
     // Start client network loop, with 10 pings pr. second
-    client_network_loop(socket, 10);
+    client_network_loop(socket, 1);
 }
 
 /// Sends a join request to the host.
