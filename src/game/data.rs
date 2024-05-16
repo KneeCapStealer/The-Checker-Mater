@@ -225,6 +225,7 @@ impl Context {
             let action = unsafe { action.unwrap_unchecked() };
             match action {
                 GameAction::MovePiece(mov) => {
+                    println!("Recieved move: {:#?}", mov);
                     set_board_move(&mov.reverse());
                     slint::invoke_from_event_loop(move || {
                         weak_window.unwrap().invoke_move_piece();
