@@ -249,6 +249,8 @@ pub fn client_network_loop(socket: tokio::net::UdpSocket, pings: usize) {
                 if let Some((data, id)) = queue::pop_outgoing_queue().await {
                     println!("Sending Packet with ID {}... ({:?})", id, data);
                     send_p2p_packet(&new_sock, data, host_addr).await.unwrap();
+                } else {
+                    tokio::time::sleep(Duration::from_millis(250)).await;
                 }
             }
         }
