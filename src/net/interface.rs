@@ -5,6 +5,7 @@ use std::{
 };
 
 use anyhow::anyhow;
+use chrono::Utc;
 use futures::executor;
 use tokio::sync::Mutex;
 
@@ -35,6 +36,10 @@ pub fn start_lan_host() -> String {
     let encoded_ip = hex_encode_ip(SocketAddr::new(IpAddr::V4(local_ip), port)).unwrap();
     executor::block_on(status::set_join_code(&encoded_ip));
 
+    executor::block_on(status::set_connection_status(
+        status::ConnectionStatus::PendingConnection,
+    ));
+
     host_network_loop(socket);
 
     encoded_ip
@@ -44,6 +49,10 @@ pub fn start_lan_host() -> String {
 pub fn start_lan_client() {
     let port = executor::block_on(get_available_port()).unwrap();
     let socket = executor::block_on(tokio::net::UdpSocket::bind(("0.0.0.0", port))).unwrap();
+
+    executor::block_on(status::set_connection_status(
+        status::ConnectionStatus::PendingConnection,
+    ));
 
     // Start client network loop, with 10 pings pr. second
     client_network_loop(socket, 10);
@@ -57,10 +66,6 @@ pub fn start_lan_client() {
 /// * `join_code` - The join code sent by the host.
 /// * `username` - The clients username.
 pub fn send_join_request(join_code: &str, username: &str) -> u16 {
-    executor::block_on(status::set_join_code(join_code));
-    let host_addr = hex_decode_ip(join_code).unwrap();
-    executor::block_on(status::set_other_addr(host_addr));
-
     let join_request = P2pRequest::new(
         status::CONNECT_SESSION_ID,
         executor::block_on(new_transaction_id()),
@@ -69,11 +74,8 @@ pub fn send_join_request(join_code: &str, username: &str) -> u16 {
             username: username.to_owned(),
         },
     );
+    let host_addr = hex_decode_ip(join_code).unwrap();
     println!("Asking to join Host at {:?}", host_addr);
-
-    executor::block_on(status::set_connection_status(
-        status::ConnectionStatus::PendingConnection,
-    ));
 
     println!("Pushing to queue");
 
@@ -92,6 +94,7 @@ pub fn send_join_request(join_code: &str, username: &str) -> u16 {
 pub fn check_for_connection_resp(
     transaction_id: u16,
 ) -> Option<anyhow::Result<(PieceColor, String)>> {
+    println!("Checking for resp");
     match executor::block_on(check_for_response(transaction_id)) {
         Some(resp) => match resp {
             P2pPacket::Response(resp) => match resp.packet {
@@ -99,11 +102,15 @@ pub fn check_for_connection_resp(
                     client_color,
                     host_username,
                 } => {
+                    println!("Got resp");
                     executor::block_on(status::set_connection_status(
                         status::ConnectionStatus::connected(),
                     ));
+                    println!("Set connection status");
                     executor::block_on(status::set_session_id(resp.session_id));
+                    println!("Set session id");
                     executor::block_on(status::set_other_username(&host_username));
+                    println!("Set username");
                     Some(Ok((client_color, host_username)))
                 }
                 P2pResponsePacket::Error { kind } => {
@@ -113,12 +120,15 @@ pub fn check_for_connection_resp(
             },
             _ => Some(Err(anyhow!("Got request packet instead of response"))),
         },
-        None => None,
+        None => {
+            println!("Got no resp :(");
+            None
+        }
     }
 }
 
 /// A blocking function which sends a join request to the host, and waits for a response. The
-/// function is in a loop, so if a packet goes lost, it will send a new one after 12,5 seconds.
+/// function is in a loop, so if a packet goes lost, it will send a new one after 5 seconds.
 ///
 /// ## Params
 /// * `join_code` - The join code sent by the host.
@@ -127,13 +137,31 @@ pub fn connect_to_host_loop(
     join_code: &str,
     username: &str,
 ) -> anyhow::Result<(PieceColor, String)> {
+    executor::block_on(tokio::time::timeout(
+        Duration::from_secs(1),
+        status::set_join_code(join_code),
+    ))
+    .unwrap();
+    let host_addr = hex_decode_ip(join_code).unwrap();
+    executor::block_on(tokio::time::timeout(
+        Duration::from_secs(1),
+        status::set_other_addr(host_addr),
+    ))
+    .unwrap();
     println!("Starting to connect...");
     let mut connection_tick = tokio::time::interval(Duration::from_millis(500));
     loop {
         let join_id = send_join_request(join_code, username);
-        println!("Request sebt");
 
-        for _ in 0..25 {
+        let time = Utc::now();
+        println!("Request sent at {:?}", time.to_string());
+        print!(
+            "Queue len: {}",
+            executor::block_on(get_outgoing_queue_len())
+        );
+        println!("!!!");
+
+        for _ in 0..10 {
             executor::block_on(connection_tick.tick());
             if let Some(resp) = check_for_connection_resp(join_id) {
                 return resp;

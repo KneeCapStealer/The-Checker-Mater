@@ -61,13 +61,21 @@ impl Context {
                 let gamedata = try_get_static_self().unwrap();
 
                 move || {
-                    println!("Code was: \"{}\"", gamedata.window.get_lan_code());
                     let join_code: String = gamedata.window.get_lan_code().into();
+                    println!("Code was: \"{}\"", &join_code);
+
                     gamedata.load_connecting_window(join_code.clone(), false);
+
                     interface::start_lan_client();
+
                     let handle_weak = gamedata.window.as_weak();
                     tokio::spawn(async move {
-                        let _ = interface::connect_to_host_loop(&join_code, "CLIENT");
+                        println!("Hello");
+                        let (color, name) =
+                            interface::connect_to_host_loop(&join_code, "CLIENT").unwrap();
+
+                        println!("Joined {}'s game. You are {:?}", name, color);
+
                         let handle_copy = handle_weak.clone();
                         slint::invoke_from_event_loop(move || {
                             handle_copy.unwrap().invoke_load_game_window();
@@ -90,7 +98,7 @@ impl Context {
             gamedata.load_connecting_window(join_code.clone(), true);
 
             let mut clipboard = Clipboard::new().unwrap();
-            clipboard.set_text(join_code);
+            clipboard.set_text(join_code).unwrap();
 
             let handle_weak = gamedata.window.as_weak();
             std::thread::spawn(move || {

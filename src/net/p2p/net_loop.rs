@@ -205,7 +205,7 @@ pub fn client_network_loop(socket: tokio::net::UdpSocket, pings: usize) {
                             }
                             let elapsed_ns = time.elapsed().as_nanos();
                             println!("ping: {} ns", elapsed_ns);
-                            if !get_connection_status().await.is_connected() {
+                            if get_connection_status().await.is_reconnecting() {
                                 set_connection_status(ConnectionStatus::connected()).await;
                             }
                             set_connection_ping(elapsed_ns).await;
@@ -239,13 +239,16 @@ pub fn client_network_loop(socket: tokio::net::UdpSocket, pings: usize) {
         let new_sock = socket.clone();
         async move {
             loop {
-                let client_addr = match get_other_addr().await {
+                let host_addr = match get_other_addr().await.clone() {
                     Some(addr) => addr,
-                    None => continue,
+                    None => {
+                        tokio::time::sleep(Duration::from_millis(250)).await;
+                        continue;
+                    }
                 };
                 if let Some((data, id)) = queue::pop_outgoing_queue().await {
                     println!("Sending Packet with ID {}... ({:?})", id, data);
-                    send_p2p_packet(&new_sock, data, client_addr).await.unwrap();
+                    send_p2p_packet(&new_sock, data, host_addr).await.unwrap();
                 }
             }
         }
