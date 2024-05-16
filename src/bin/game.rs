@@ -19,8 +19,6 @@ async fn main() -> Result<(), slint::PlatformError> {
         exit(0);
     });
 
-    gamedata.start_new_game();
-
     let window = gamedata.get_window();
     window.run()
 }

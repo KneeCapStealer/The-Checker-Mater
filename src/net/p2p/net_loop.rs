@@ -13,10 +13,10 @@ use crate::{
             PieceColor,
         },
         status::{
-            get_connection_status, get_join_code, get_other_addr, get_session_id,
+            get_connection_status, get_join_code, get_my_username, get_other_addr, get_session_id,
             remove_other_addr, remove_other_username, set_connection_ping, set_connection_status,
-            set_other_addr, set_reconnect_tries, set_session_id, ConnectionStatus,
-            CONNECT_SESSION_ID,
+            set_other_addr, set_other_username, set_reconnect_tries, set_session_id,
+            ConnectionStatus, CONNECT_SESSION_ID,
         },
     },
 };
@@ -112,10 +112,12 @@ pub fn host_network_loop(socket: tokio::net::UdpSocket) {
                                 set_session_id(rand::random::<u16>()).await;
                                 set_connection_status(ConnectionStatus::connected()).await;
                                 set_other_addr(addr).await;
+                                set_other_username(&username).await;
+                                let username = get_my_username().await.unwrap_or("HOST".to_owned());
 
                                 P2pResponsePacket::Connect {
                                     client_color: PieceColor::White,
-                                    host_username: "Atle".to_owned(),
+                                    host_username: username,
                                 }
                             }
                         }
