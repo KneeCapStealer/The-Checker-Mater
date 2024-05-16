@@ -11,17 +11,15 @@ use crate::game::GameAction;
 use super::{P2pPacket, P2pResponse};
 
 lazy_static! {
-    static ref TRANSACTION_TABLE: Arc<
-        Mutex<
-            HashMap<
-                u16,
-                (
-                    Option<P2pPacket>,
-                    Option<Arc<Mutex<dyn FnMut(P2pResponse) + Send + Sync>>>
-                ),
-            >,
+    static ref TRANSACTION_TABLE: Mutex<
+        HashMap<
+            u16,
+            (
+                Option<P2pPacket>,
+                Option<Arc<Mutex<dyn FnMut(P2pResponse) + Send + Sync>>>
+            ),
         >,
-    > = Arc::new(Mutex::new(HashMap::new()));
+    > = Mutex::const_new(HashMap::new());
 }
 
 lazy_static! {
@@ -29,14 +27,14 @@ lazy_static! {
     /// Each item in the queue is a tuple of two items: The outgoing packet, and a closure that runs when
     /// the outgoing packet has gotten a response.
     /// If the packet isn't meant to get a response, set the closure to `None`.
-    static ref OUTGOING_QUEUE: Arc<Mutex<VecDeque<(P2pPacket, u16)>>> =
-        Arc::new(Mutex::new(VecDeque::new()));
+    static ref OUTGOING_QUEUE: Mutex<VecDeque<(P2pPacket, u16)>> =
+        Mutex::const_new(VecDeque::new());
 }
 
 lazy_static! {
     /// A list which holds all `GameActions` send from the other user.
-    static ref INCOMING_ACTIONS: Arc<Mutex<VecDeque<GameAction>>> =
-        Arc::new(Mutex::new(VecDeque::new()));
+    static ref INCOMING_ACTIONS: Mutex<VecDeque<GameAction>> =
+        Mutex::const_new(VecDeque::new());
 }
 
 pub async fn push_outgoing_queue(

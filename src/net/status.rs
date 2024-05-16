@@ -1,6 +1,5 @@
-use std::{net::SocketAddr, sync::Arc};
+use std::net::SocketAddr;
 
-use lazy_static::lazy_static;
 use tokio::sync::Mutex;
 
 pub const CONNECT_SESSION_ID: u16 = 0x15f4;
@@ -46,16 +45,14 @@ pub struct ConnectionData {
     session_id: Mutex<u16>,
 }
 
-lazy_static! {
-    static ref CONNECTION_DATA: Arc<ConnectionData> = Arc::new(ConnectionData {
-        status: Mutex::new(ConnectionStatus::Disconnected),
-        other_addr: Mutex::new(None),
-        other_username: Mutex::new(None),
-        my_username: Mutex::new(None),
-        join_code: Mutex::new(None),
-        session_id: Mutex::new(CONNECT_SESSION_ID),
-    });
-}
+static CONNECTION_DATA: ConnectionData = ConnectionData {
+    status: Mutex::const_new(ConnectionStatus::Disconnected),
+    other_addr: Mutex::const_new(None),
+    other_username: Mutex::const_new(None),
+    my_username: Mutex::const_new(None),
+    join_code: Mutex::const_new(None),
+    session_id: Mutex::const_new(CONNECT_SESSION_ID),
+};
 
 pub async fn get_other_addr() -> Option<SocketAddr> {
     *CONNECTION_DATA.other_addr.lock().await
@@ -98,7 +95,7 @@ pub async fn set_connection_status(status: ConnectionStatus) {
 }
 
 pub async fn get_connection_ping() -> Option<u128> {
-    match CONNECTION_DATA.status.lock().await.clone() {
+    match *CONNECTION_DATA.status.lock().await {
         ConnectionStatus::Connected { ping } => Some(ping),
         _ => None,
     }
