@@ -91,7 +91,7 @@ impl Board {
     pub fn move_piece(&mut self) {
         let mov = get_board_move();
 
-        println!("\nMove instruction: {:#?}", mov);
+        println!("\nPerformed move: {:#?}", mov);
 
         let mut start_data = self.pieces.row_data(mov.index).unwrap();
 

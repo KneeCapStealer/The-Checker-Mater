@@ -501,7 +501,7 @@ impl FromPacket for GameAction {
                 if packet.len() > 4 {
                     captured = Some(vec![]);
 
-                    for pack in packet.iter().skip(3) {
+                    for pack in packet.iter().skip(4) {
                         unsafe { captured.as_mut().unwrap_unchecked().push(*pack as usize) }
                     }
                 }
