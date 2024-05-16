@@ -6,7 +6,7 @@ use anyhow::anyhow;
 
 use super::net_utils::{FromPacket, PacketError, ToByte, ToPacket};
 
-use crate::game::{GameAction, Move, PieceColor, PieceData, Move};
+use crate::game::{GameAction, Move, PieceColor, PieceData};
 
 #[derive(Clone, Debug)]
 pub enum P2pPacket {
