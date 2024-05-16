@@ -1,8 +1,25 @@
 use super::{BoardSquare, Direction, GameWindow, Move, PieceColor, PieceData};
+use futures::executor;
 use slint::ComponentHandle;
 use slint::{Model, Weak};
 use std::mem::{transmute, MaybeUninit};
 use std::rc::Rc;
+use tokio::sync::Mutex;
+
+pub static mut BOARD_MOVE: Mutex<Move> = Mutex::const_new(Move {
+    index: 0,
+    end: 0,
+    promoted: false,
+    captured: None,
+});
+
+pub fn set_board_move(mov: &Move) {
+    unsafe { *executor::block_on(BOARD_MOVE.lock()) = mov.clone() };
+}
+
+pub fn get_board_move() -> Move {
+    unsafe { executor::block_on(BOARD_MOVE.lock()).clone() }
+}
 
 /// Struct holding gamestate of the checkers board
 #[derive(Default, Clone)]
@@ -34,19 +51,17 @@ impl Board {
     fn default_setup(player_color: PieceColor) -> Vec<PieceData> {
         let enemy_color = player_color.get_opposite();
 
-        let mut tiles = vec![];
+        let mut tiles = vec![
+            PieceData {
+                color: enemy_color,
+                is_active: true,
+                is_king: false,
+            };
+            12
+        ];
 
-        for i in 0..32 {
-            if i == 6 || i == 14 || i == 17 {
-                tiles.push(PieceData {
-                    color: enemy_color,
-                    is_active: true,
-                    is_king: false,
-                });
-                continue;
-            }
-
-            if i < 23 {
+        for i in 12..32 {
+            if i < 20 {
                 tiles.push(PieceData::const_default());
                 continue;
             }
@@ -73,7 +88,11 @@ impl Board {
     }
 
     /// Takes a `Move` struct and performs the move described within
-    pub fn move_piece(&mut self, mov: &Move) {
+    pub fn move_piece(&mut self) {
+        let mov = get_board_move();
+
+        println!("\nPerformed move: {:#?}", mov);
+
         let mut start_data = self.pieces.row_data(mov.index).unwrap();
 
         // Promotion to king
