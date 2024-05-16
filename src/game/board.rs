@@ -1,4 +1,6 @@
-use super::{BoardSquare, Direction, GameWindow, Move, PieceColor, PieceData};
+use crate::net::interface;
+
+use super::{BoardSquare, Direction, GameWindow, Move, PieceColor, PieceData, GameAction};
 use slint::ComponentHandle;
 use slint::{Model, Weak};
 use std::mem::{transmute, MaybeUninit};
@@ -88,6 +90,7 @@ impl Board {
                 self.pieces.set_row_data(*piece, PieceData::const_default())
             }
         }
+
     }
 
     /// Gives all the squares in `indices` the "marked" color
