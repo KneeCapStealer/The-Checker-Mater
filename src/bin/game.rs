@@ -6,7 +6,7 @@ use the_checker_mater::game::data::Context;
 
 #[tokio::main]
 async fn main() -> Result<(), slint::PlatformError> {
-    let mut gamedata = Context::new()?;
+    let gamedata = Context::new()?;
 
     let window = gamedata.get_window();
 
@@ -18,8 +18,6 @@ async fn main() -> Result<(), slint::PlatformError> {
     window.on_exit(|| {
         exit(0);
     });
-
-    gamedata.start_new_game();
 
     let window = gamedata.get_window();
     window.run()

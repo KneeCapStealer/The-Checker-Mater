@@ -3,7 +3,7 @@ use slint::ComponentHandle;
 
 use crate::net::interface;
 
-use super::{board::Board, GameWindow, PieceColor, WindowType};
+use super::{board::Board, GameAction, GameWindow, PieceColor, WindowType};
 use std::cell::{RefCell, RefMut};
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
@@ -130,7 +130,7 @@ impl Context {
             if board.piece_is_player(selected_piece) {
                 let legal_moves = board.get_legal_moves();
                 if let Some(moves) = legal_moves {
-                    'move_check: for mov in &moves {
+                    for mov in &moves {
                         let input_matches_move =
                             mov.end == index as usize && mov.index == selected_piece;
 
@@ -138,7 +138,8 @@ impl Context {
 
                         if input_matches_move {
                             board.move_piece(mov);
-                            break 'move_check;
+                            interface::send_game_action(GameAction::MovePiece(mov.clone()), |_| ());
+                            break;
                         }
                     }
                 }
@@ -152,12 +153,36 @@ impl Context {
             board.selected_square = index;
         }
     }
+
+    pub fn wait_for_opponent(&mut self) {
+        self.is_player_turn = false;
+        let try_get_static_self = self.try_get_static_func();
+        tokio::spawn(async move {
+            loop {
+                if let Some(action) = interface::get_next_game_action() {
+                    match action {
+                        GameAction::MovePiece(mov) => {
+                            slint::invoke_from_event_loop(move || {
+                                // TODO: Move piece via slint
+                            })
+                            .unwrap();
+                        }
+                        _ => {}
+                    }
+
+                    return;
+                }
+                tokio::time::sleep(Duration::from_millis(50)).await;
+            }
+        });
+    }
 }
 
 pub struct GameData {
-    pub window: GameWindow,
-    pub board: Rc<RefCell<Board>>,
-    pub is_host: Option<bool>,
+    window: GameWindow,
+    board: Rc<RefCell<Board>>,
+    is_host: Option<bool>,
+    is_player_turn: bool,
 }
 
 impl GameData {
@@ -169,6 +194,7 @@ impl GameData {
             window,
             board,
             is_host: None,
+            is_player_turn: false,
         })
     }
 
