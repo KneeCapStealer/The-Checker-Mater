@@ -78,6 +78,10 @@ pub async fn get_available_port() -> anyhow::Result<u16> {
 }
 
 pub fn get_local_ip() -> anyhow::Result<Ipv4Addr> {
+    local_ip_address::list_afinet_netifas()
+        .unwrap()
+        .iter()
+        .for_each(|x| println!("{:#?}", x.1));
     if let Ok(IpAddr::V4(ip)) = local_ip() {
         Ok(ip)
     } else {
