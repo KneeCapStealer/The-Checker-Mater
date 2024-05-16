@@ -1,4 +1,4 @@
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::{hint, net::{IpAddr, Ipv4Addr, SocketAddr}};
 
 use anyhow::anyhow;
 use local_ip_address::local_ip;
@@ -78,10 +78,20 @@ pub async fn get_available_port() -> anyhow::Result<u16> {
 }
 
 pub fn get_local_ip() -> anyhow::Result<Ipv4Addr> {
-    local_ip_address::list_afinet_netifas()
+    let hamachi_netifas: Option<(String, IpAddr)> = local_ip_address::list_afinet_netifas()
         .unwrap()
-        .iter()
-        .for_each(|x| println!("{:#?}", x.1));
+        .into_iter()
+        .filter(|netifas| matches!(netifas.1, IpAddr::V4(_)))
+        .find(|x| x.0.to_lowercase().trim() == "hamachi");
+
+        if let Some(netifas) = hamachi_netifas {
+            print!("Found Hamachi IP!!");
+            return match netifas.1 {
+                IpAddr::V4(ip) => Ok(ip),
+                _ => unsafe { hint::unreachable_unchecked(); }
+            }
+        }
+
     if let Ok(IpAddr::V4(ip)) = local_ip() {
         Ok(ip)
     } else {
