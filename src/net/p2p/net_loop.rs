@@ -242,7 +242,7 @@ pub fn client_network_loop(socket: tokio::net::UdpSocket, pings: usize) {
                 let host_addr = match get_other_addr().await.clone() {
                     Some(addr) => addr,
                     None => {
-                        tokio::time::sleep(Duration::from_millis(250)).await;
+                        tokio::time::sleep(Duration::from_millis(50)).await;
                         continue;
                     }
                 };
@@ -250,7 +250,7 @@ pub fn client_network_loop(socket: tokio::net::UdpSocket, pings: usize) {
                     println!("Sending Packet with ID {}... ({:?})", id, data);
                     send_p2p_packet(&new_sock, data, host_addr).await.unwrap();
                 } else {
-                    tokio::time::sleep(Duration::from_millis(250)).await;
+                    tokio::time::sleep(Duration::from_millis(50)).await;
                 }
             }
         }
